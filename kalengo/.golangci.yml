@@ -1,0 +1,84 @@
+# golangci-lint v2 — §13.3 "Analisis statis Go: 0 temuan High"
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable:
+    # wajib menurut §13.3
+    - errcheck
+    - staticcheck
+    - gosec
+    - bodyclose
+    - sqlclosecheck
+    # tambahan wajar untuk backend produksi
+    - govet
+    - ineffassign
+    - unused
+    - noctx
+    - rowserrcheck
+    - exhaustive
+    - revive
+    - whitespace
+    - errorlint
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: false # kita sengaja pakai `_ =` pada beberapa cleanup
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # optimasi mikro, bukan prioritas M0
+    gosec:
+      excludes:
+        - G404 # math/rand untuk non-keamanan; crypto/rand dipakai untuk token
+    exhaustive:
+      default-signifies-exhaustive: true
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+          disabled: true
+        - name: var-naming
+        - name: error-return
+        - name: error-strings
+        - name: indent-error-flow
+        - name: unexported-return
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - std-error-handling
+    rules:
+      # kode hasil generate sqlc tidak direview manual
+      - path: internal/repo/sqlcgen/
+        linters: [revive, gosec, errcheck, unused, staticcheck, govet, exhaustive]
+      - path: _test\.go
+        linters: [gosec, errcheck, noctx, bodyclose, dupl]
+      - path: cmd/
+        linters: [revive] # main() boleh tanpa komentar
+      - path: internal/platform/logger/
+        linters: [revive]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/kalengo/api
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+severity:
+  default: error

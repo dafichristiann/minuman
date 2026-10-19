@@ -1,0 +1,20 @@
+# Normalisasi akhir baris.
+#
+# Repositori ini dipakai di dua lingkungan sekaligus: Windows (pengembangan)
+# dan container Linux (CI, Docker, nginx). Semua berkas disimpan dengan LF agar
+# skrip shell dan Makefile tidak rusak oleh karakter CR.
+* text=auto eol=lf
+
+# Biner: jangan pernah disentuh normalisasi.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.pdf  binary
+
+# Berkas yang punya arti khusus di GitHub.
+*.go   linguist-language=Go

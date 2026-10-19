@@ -1,0 +1,73 @@
+/* ============================================================
+ * Reset minimal.
+ *
+ * Sengaja TIDAK memuat sistem desain. Tampilan sesungguhnya dibangun pada M6
+ * setelah moodboard §5 disetujui; pada M0 kita hanya perlu baseline yang
+ * netral dan dapat diakses.
+ * ============================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  min-height: 100dvh;
+  font-family: var(--font-body);
+  line-height: var(--leading-normal);
+  color: var(--fg-page);
+  background-color: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+img,
+svg,
+video,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* Fokus selalu terlihat. Jangan hapus outline tanpa pengganti yang setara (§14). */
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--radius-sm);
+}
+
+/* Teks hanya untuk pembaca layar. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

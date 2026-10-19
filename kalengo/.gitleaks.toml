@@ -1,0 +1,31 @@
+# Aturan deteksi rahasia — §13.1 ("Rahasia lewat environment/secret manager, tidak ada di repo")
+title = "KALENGO secret scanning"
+
+[extend]
+useDefault = true
+
+# Contoh env, fixture test, dan dokumentasi memang berisi nilai palsu.
+[allowlist]
+description = "Nilai contoh/palsu yang aman"
+paths = [
+  '''\.env\.example$''',
+  '''docs/.*\.md$''',
+  '''README\.md$''',
+  '''openapi\.yaml$''',
+  '''docker-compose\.yml$''',
+  '''testdata/''',
+  '''_test\.go$''',
+  '''.*_test\.tsx?$''',
+  '''scripts/.*\.ps1$''',
+  '''Makefile$''',
+]
+
+regexes = [
+  # password dev yang memang ditulis di compose/initdb
+  '''app_dev_password''',
+  '''migrator_dev_password''',
+  '''redis_dev_password''',
+  '''minio_dev_password''',
+  # placeholder yang sengaja
+  '''GANTI_DENGAN_RAHASIA_ACAK_MINIMAL_32_BYTE''',
+]

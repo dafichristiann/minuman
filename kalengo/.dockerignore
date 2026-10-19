@@ -1,0 +1,31 @@
+# Jangan kirim apa pun yang tidak diperlukan ke dalam image.
+# Konteks build adalah ROOT repo (lihat docker-compose.yml / Dockerfile).
+
+# Dependensi & hasil build lokal
+**/node_modules
+**/dist
+**/bin
+**/tmp
+**/coverage
+**/*.tsbuildinfo
+
+# VCS & CI
+.git
+.github
+.gitignore
+
+# Rahasia — jangan pernah masuk image
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# Dokumentasi & aset non-runtime
+docs/
+*.md
+!README.md
+
+# Data lokal docker
+docker/data

@@ -1,0 +1,118 @@
+/* ============================================================
+ * KALENGO — token desain (§3.4)
+ *
+ * PENTING: berkas ini hanya MENYIMPAN token dari PRD. Penerapannya ke
+ * komponen dikerjakan pada M6, SETELAH moodboard Pinterest (§5) disusun —
+ * urutan ini diminta eksplisit oleh PRD.
+ *
+ * Palet sengaja terbatas dan kontras tinggi (gaya kartun rubber-hose):
+ * tanpa gradien generik, tanpa glassmorphism, tanpa emoji sebagai ikon.
+ * ============================================================ */
+
+:root {
+  /* ---------- Warna inti (§3.4) ---------- */
+  --cream: #fff4dc;
+  --ink: #1b1b2f;
+  --tomato: #ff4b3e;
+  --sky: #2ec4f1;
+  --lemon: #ffd23f;
+  --mint: #3ddc97;
+  --berry: #d6336c;
+
+  /* ---------- Warna turunan ---------- */
+  /* Digunakan hanya untuk keadaan diam/teks sekunder; nilai pasti ditetapkan M6. */
+  --cream-deep: #ffe9bd;
+  --ink-soft: #4a4a63;
+  --paper: #fffaf0;
+  --line: #1b1b2f;
+
+  /* ---------- Semantik ---------- */
+  --color-success: var(--mint);
+  --color-info: var(--sky);
+  --color-warning: var(--lemon);
+  --color-danger: var(--tomato);
+  --color-accent: var(--berry);
+
+  --bg-page: var(--cream);
+  --fg-page: var(--ink);
+
+  /* ---------- Tipografi (§3.2) ---------- */
+  --font-display: "Bagel Fat One", "Chango", system-ui, sans-serif;
+  --font-body: "Nunito", "DM Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", monospace;
+
+  /* Skala tipografi (rasio ~1.25) */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5625rem;
+  --text-2xl: 1.953rem;
+  --text-3xl: 2.441rem;
+  --text-4xl: 3.052rem;
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
+  --leading-normal: 1.6;
+
+  /* ---------- Ruang ---------- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  /* ---------- Bentuk: gaya rubber-hose, sudut membulat & garis tebal ---------- */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-pill: 999px;
+  --border-w: 2px;
+  --border-w-bold: 3px;
+  --shadow-hard: 3px 3px 0 var(--ink);
+  --shadow-hard-lg: 5px 5px 0 var(--ink);
+
+  /* ---------- Gerak (§3.5) ----------
+   * Ringan, memakai transform/opacity saja agar tidak memicu layout ulang.
+   * Anggaran: animasi <= 150 KB di beranda (§1.4). */
+  --dur-instant: 90ms;
+  --dur-fast: 160ms;
+  --dur-base: 240ms;
+  --dur-slow: 420ms;
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* ---------- Lapisan (z-index) ---------- */
+  --z-base: 0;
+  --z-sticky: 100;
+  --z-drawer: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+  --z-celebrate: 500;
+  --z-dev-overlay: 900;
+
+  /* ---------- Tata letak ---------- */
+  --container-max: 1200px;
+  --header-h: 64px;
+  --bottom-nav-h: 60px;
+
+  /* ---------- Fokus: selalu terlihat, jangan dihapus (§14 a11y) ---------- */
+  --focus-ring: 3px solid var(--sky);
+  --focus-offset: 2px;
+}
+
+/* Mode gelap & preferensi pengguna ditambahkan pada M6 bersama tema lengkap. */
+
+/* Hormati preferensi sistem; pengguna juga bisa memaksa lewat user_ui_settings. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms;
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+  }
+}

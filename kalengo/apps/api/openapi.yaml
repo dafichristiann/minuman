@@ -1,0 +1,2281 @@
+openapi: 3.1.0
+
+# ============================================================
+# KALENGO API — kontrak §12
+#
+# Status M0: kerangka kontrak. Endpoint yang sudah ada hanya /healthz, /readyz,
+# /api/v1/meta, dan /api/v1/meta/error-codes. Endpoint lain sudah didaftarkan
+# beserta bentuk responsnya tetapi masih mengembalikan 501 (lihat
+# components/responses/NotImplemented dan penanda x-milestone).
+#
+# Klien TypeScript dibangkitkan dari berkas ini (§10.2) sehingga frontend selalu
+# mengikuti kontrak, bukan menebak.
+#
+# Aturan penting:
+#   - error.code SELALU sama dengan kode katalog notifikasi §8.6 / registry
+#     internal/apperr. Endpoint /api/v1/meta/error-codes mempublikasikan daftarnya.
+#   - Semua harga dalam RUPIAH BULAT (integer). Tidak ada desimal, tidak ada float.
+#   - Semua timestamp ISO-8601 UTC.
+#   - Semua endpoint privat memakai cookie HttpOnly + token CSRF untuk mutasi.
+# ============================================================
+
+info:
+  title: KALENGO API
+  version: 0.1.0
+  description: |
+    API toko minuman kaleng KALENGO.
+
+    **Format error (RFC 9457 disederhanakan):**
+    ```json
+    {
+      "error": {
+        "code": "CART_PRICE_CHANGED",
+        "message": "Harga berubah",
+        "fields": { "qty": "maks 24" },
+        "request_id": "..."
+      }
+    }
+    ```
+    `error.code` sama dengan kode di katalog notifikasi frontend (§8.6) sehingga
+    pesan di UI seragam.
+
+    **Rate limit (§12.8):** respons menyertakan `X-RateLimit-Limit`,
+    `X-RateLimit-Remaining`, dan `Retry-After` saat kena batas (429 / `API_RATE_LIMIT`).
+  contact:
+    name: Tim KALENGO
+    email: dev@kalengo.test
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:8080
+    description: Pengembangan lokal (docker compose)
+  - url: https://api.staging.kalengo.test
+    description: Staging
+  - url: https://api.kalengo.test
+    description: Produksi
+
+tags:
+  - name: Sistem
+    description: Health, meta, dan sinkronisasi katalog notifikasi
+  - name: Autentikasi
+    description: Daftar, login, refresh, verifikasi, reset password (§12.1)
+  - name: Akun
+    description: Profil, alamat, pengaturan tampilan & notifikasi
+  - name: Katalog
+    description: Produk, varian, kategori, merek, pencarian, ulasan (§12.2)
+  - name: Keranjang
+    description: Keranjang, merge keranjang tamu, validasi harga/stok (§12.3)
+  - name: Wishlist
+    description: Wishlist & pengingat restock (§12.3)
+  - name: Checkout
+    description: Ongkir, voucher, pembuatan pesanan (§12.4)
+  - name: Pesanan
+    description: Riwayat, pembatalan, pembayaran, refund, ulasan (§12.4)
+  - name: Webhook
+    description: Callback penyedia pembayaran & pengiriman (§12.5)
+  - name: Notifikasi
+    description: Pusat notifikasi, preferensi, SSE, Web Push (§12.6)
+  - name: Admin
+    description: Panel admin & audit log (§12.7)
+
+security:
+  - cookieAuth: []
+  - csrfToken: []
+
+paths:
+  # ============================================================
+  # SISTEM (di luar /api/v1, untuk orkestrator & monitoring)
+  # ============================================================
+  /healthz:
+    get:
+      tags: [Sistem]
+      summary: Liveness probe
+      description: Proses hidup. Tidak menyentuh database/Redis.
+      security: []
+      responses:
+        "200":
+          description: Proses hidup
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, version, uptime_seconds]
+                properties:
+                  status: { type: string, const: alive }
+                  version: { type: string }
+                  uptime_seconds: { type: integer, format: int64 }
+
+  /readyz:
+    get:
+      tags: [Sistem]
+      summary: Readiness probe
+      description: Memeriksa PostgreSQL & Redis. 503 bila ada yang mati.
+      security: []
+      responses:
+        "200":
+          description: Siap menerima trafik
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Readiness" }
+        "503":
+          description: Ada dependensi yang tidak sehat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Readiness" }
+
+  /metrics:
+    get:
+      tags: [Sistem]
+      summary: Metrik Prometheus
+      description: Hanya tersedia bila METRICS_ENABLED=true. Batasi akses di produksi.
+      security: []
+      responses:
+        "200":
+          description: Teks format Prometheus
+          content:
+            text/plain:
+              schema: { type: string }
+
+  /api/v1/meta:
+    get:
+      tags: [Sistem]
+      summary: Informasi build & lingkungan
+      description: Dipakai halaman admin dan banner "versi baru tersedia" (§8.6 SYS_NEW_VERSION).
+      security: []
+      responses:
+        "200":
+          description: Informasi aplikasi
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [app, env, version]
+                properties:
+                  app: { type: string, examples: [kalengo] }
+                  env: { type: string, enum: [development, staging, production] }
+                  version: { type: string, examples: ["1.0.0"] }
+                  commit: { type: string, examples: [a1b2c3d] }
+                  uptime_seconds: { type: integer, format: int64 }
+                  server_time: { type: string, format: date-time }
+                  notif_modes:
+                    type: array
+                    items: { type: string, enum: [normal, calm, silent] }
+                  payment_provider: { type: string, examples: [midtrans] }
+                  shipping_provider: { type: string, examples: [biteship] }
+
+  /api/v1/meta/error-codes:
+    get:
+      tags: [Sistem]
+      summary: Publikasikan seluruh kode error backend
+      description: |
+        Sumber tunggal kebenaran lintas bahasa. Frontend memakainya pada M6 untuk
+        memverifikasi bahwa katalog notifikasi tidak pernah ketinggalan kode.
+      security: []
+      responses:
+        "200":
+          description: Daftar kode error
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count, items]
+                properties:
+                  count: { type: integer }
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [code, status, severity, category, message]
+                      properties:
+                        code: { type: string, examples: [CART_PRICE_CHANGED] }
+                        status: { type: integer, examples: [409] }
+                        severity:
+                          type: string
+                          enum: [success, info, warning, error, critical]
+                        category:
+                          type: string
+                          enum: [auth, account, catalog, voucher, checkout, payment, order, system, admin]
+                        message: { type: string }
+                        persist: { type: boolean }
+
+  # ============================================================
+  # AUTENTIKASI (§12.1)
+  # ============================================================
+  /api/v1/auth/register:
+    post:
+      tags: [Autentikasi]
+      summary: Daftar akun baru
+      description: Rate limit 5/jam/IP (§12.8). Mengirim email verifikasi (§8.6 AUTH_REGISTER_OK).
+      security: []
+      x-milestone: M1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "201":
+          description: Akun dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/auth/login:
+    post:
+      tags: [Autentikasi]
+      summary: Masuk
+      description: |
+        Lockout bertahap + CAPTCHA setelah 5 kegagalan (§13.1). Pesan gagal selalu
+        generik (`AUTH_LOGIN_FAIL`) dan waktu respons konstan agar tidak ada user enumeration.
+      security: []
+      x-milestone: M1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Berhasil masuk; cookie akses + refresh dipasang
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+              description: kalengo_at (akses) dan kalengo_rt (refresh), HttpOnly + Secure + SameSite=Lax
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "423":
+          description: Akun terkunci sementara (`AUTH_LOGIN_LOCKED`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Autentikasi]
+      summary: Perbarui access token
+      description: |
+        Rotasi refresh token + deteksi reuse. Reuse mencabut SELURUH keluarga token
+        dan memicu `AUTH_REFRESH_REUSE` (§13.1).
+      security: []
+      x-milestone: M1
+      responses:
+        "200":
+          description: Token baru dipasang di cookie
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/auth/logout:
+    post:
+      tags: [Autentikasi]
+      summary: Keluar dari perangkat ini
+      x-milestone: M1
+      responses:
+        "204":
+          description: Refresh token dicabut
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/auth/logout-all:
+    post:
+      tags: [Autentikasi]
+      summary: Keluar dari semua perangkat
+      description: Mencabut semua keluarga token pengguna. Memicu konfirmasi modal (§8.6 AUTH_LOGOUT_CONFIRM).
+      x-milestone: M1
+      responses:
+        "204":
+          description: Semua sesi dicabut
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/auth/verify-email:
+    post:
+      tags: [Autentikasi]
+      summary: Verifikasi email dengan token sekali pakai
+      security: []
+      x-milestone: M1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        "204":
+          description: Email terverifikasi (`AUTH_VERIFY_OK`)
+        "410":
+          description: Token kedaluwarsa (`AUTH_VERIFY_EXPIRED`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/auth/forgot-password:
+    post:
+      tags: [Autentikasi]
+      summary: Minta tautan reset password
+      description: Respons SELALU sama (202) agar tidak bisa dipakai menebak email terdaftar.
+      security: []
+      x-milestone: M1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "202":
+          description: Permintaan diterima (`AUTH_PASSWORD_RESET_SENT`)
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/auth/reset-password:
+    post:
+      tags: [Autentikasi]
+      summary: Setel ulang password dengan token sekali pakai
+      security: []
+      x-milestone: M1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token: { type: string }
+                password: { type: string, minLength: 10 }
+      responses:
+        "204":
+          description: Password diganti; sesi lain dicabut (`AUTH_PASSWORD_CHANGED`)
+        "410":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  # ============================================================
+  # AKUN
+  # ============================================================
+  /api/v1/me:
+    get:
+      tags: [Akun]
+      summary: Profil pengguna
+      x-milestone: M1
+      responses:
+        "200":
+          description: Profil
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    patch:
+      tags: [Akun]
+      summary: Ubah profil
+      x-milestone: M1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateProfileRequest" }
+      responses:
+        "200":
+          description: Profil diperbarui (`ACC_PROFILE_SAVED`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    delete:
+      tags: [Akun]
+      summary: Hapus / anonimisasi akun
+      description: |
+        Anonimisasi sesuai UU PDP (§6.7). Wajib konfirmasi mengetik HAPUS
+        (§8.6 ACC_DELETE_CONFIRM). Baris pesanan & audit tetap utuh.
+      x-milestone: M1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm, password]
+              properties:
+                confirm: { type: string, const: HAPUS }
+                password: { type: string }
+      responses:
+        "204":
+          description: Akun dianonimkan (`ACC_DELETE_DONE`)
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/me/password:
+    post:
+      tags: [Akun]
+      summary: Ganti password
+      description: Mencabut semua sesi lain dan mengirim email pemberitahuan (§8.6 AUTH_PASSWORD_CHANGED).
+      x-milestone: M1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password: { type: string }
+                new_password: { type: string, minLength: 10 }
+      responses:
+        "204":
+          description: Password diganti
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/me/addresses:
+    get:
+      tags: [Akun]
+      summary: Daftar alamat
+      x-milestone: M1
+      responses:
+        "200":
+          description: Daftar alamat
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Address" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    post:
+      tags: [Akun]
+      summary: Tambah alamat
+      x-milestone: M1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AddressInput" }
+      responses:
+        "201":
+          description: Alamat tersimpan (`ACC_ADDRESS_ADDED`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Address" }
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/me/addresses/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathID"
+    patch:
+      tags: [Akun]
+      summary: Ubah alamat
+      x-milestone: M1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AddressInput" }
+      responses:
+        "200":
+          description: Alamat diperbarui
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Address" }
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    delete:
+      tags: [Akun]
+      summary: Hapus alamat (soft delete, bisa dibatalkan lewat snackbar)
+      x-milestone: M1
+      responses:
+        "204":
+          description: Alamat dihapus (`ACC_ADDRESS_DELETE`)
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/me/ui-settings:
+    get:
+      tags: [Akun]
+      summary: Ambil pengaturan tampilan & mode notifikasi
+      x-milestone: M3
+      responses:
+        "200":
+          description: Pengaturan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UISettings" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    put:
+      tags: [Akun]
+      summary: Simpan pengaturan tampilan & mode notifikasi
+      description: Mode `calm` hanya menampilkan notifikasi penting; `silent` hanya error & keamanan (§8.3).
+      x-milestone: M3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UISettings" }
+      responses:
+        "200":
+          description: Tersimpan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UISettings" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  # ============================================================
+  # KATALOG (§12.2)
+  # ============================================================
+  /api/v1/products:
+    get:
+      tags: [Katalog]
+      summary: Daftar produk dengan filter, urutan, dan paginasi cursor
+      security: []
+      x-milestone: M1
+      parameters:
+        - name: category
+          in: query
+          schema: { type: string }
+          description: Slug kategori
+        - name: brand
+          in: query
+          schema: { type: string }
+          description: Slug merek
+        - name: flavor
+          in: query
+          schema: { type: string }
+        - name: min_price
+          in: query
+          schema: { type: integer, format: int64, minimum: 0 }
+          description: Rupiah bulat
+        - name: max_price
+          in: query
+          schema: { type: integer, format: int64, minimum: 0 }
+        - name: in_stock
+          in: query
+          schema: { type: boolean }
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [popular, cheapest, newest, priciest]
+            default: newest
+        - name: cursor
+          in: query
+          schema: { type: string }
+          description: Kursor opaque dari respons sebelumnya
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 60, default: 24 }
+      responses:
+        "200":
+          description: Daftar produk
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductList" }
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/products/suggest:
+    get:
+      tags: [Katalog]
+      summary: Saran pencarian otomatis
+      description: Klien melakukan debounce 250 ms (§6.1).
+      security: []
+      x-milestone: M1
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 80 }
+      responses:
+        "200":
+          description: Saran
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [slug, name]
+                  properties:
+                    slug: { type: string }
+                    name: { type: string }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/products/{slug}:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Katalog]
+      summary: Detail produk
+      description: |
+        Stok publik DIBULATKAN ("tersisa ≤10") agar tidak membocorkan angka pasti (§12.2).
+      security: []
+      x-milestone: M1
+      responses:
+        "200":
+          description: Detail produk + varian
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductDetail" }
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/products/{id}/reviews:
+    parameters:
+      - $ref: "#/components/parameters/PathID"
+    get:
+      tags: [Katalog]
+      summary: Ulasan produk
+      security: []
+      x-milestone: M1
+      responses:
+        "200":
+          description: Daftar ulasan
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Review" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/categories:
+    get:
+      tags: [Katalog]
+      summary: Daftar kategori
+      security: []
+      x-milestone: M1
+      responses:
+        "200":
+          description: Daftar kategori
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Category" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/brands:
+    get:
+      tags: [Katalog]
+      summary: Daftar merek
+      security: []
+      x-milestone: M1
+      responses:
+        "200":
+          description: Daftar merek
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Brand" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  # ============================================================
+  # KERANJANG (§12.3)
+  # ============================================================
+  /api/v1/cart:
+    get:
+      tags: [Keranjang]
+      summary: Ambil keranjang (harga & stok divalidasi ulang dari server)
+      x-milestone: M1
+      responses:
+        "200":
+          description: Keranjang
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    delete:
+      tags: [Keranjang]
+      summary: Kosongkan keranjang
+      description: Memicu konfirmasi (§8.6 CART_CLEARED).
+      x-milestone: M1
+      responses:
+        "204":
+          description: Keranjang dikosongkan
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/cart/items/{variantId}:
+    parameters:
+      - name: variantId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [Keranjang]
+      summary: Set jumlah item
+      description: |
+        Jumlah dibatasi `max_per_order` (§8.6 CART_QTY_MAX). Perubahan harga sejak
+        item ditambahkan memicu `CART_PRICE_CHANGED`.
+      x-milestone: M1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quantity]
+              properties:
+                quantity: { type: integer, minimum: 1, maximum: 99 }
+      responses:
+        "200":
+          description: Keranjang terbaru
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    delete:
+      tags: [Keranjang]
+      summary: Hapus item
+      x-milestone: M1
+      responses:
+        "200":
+          description: Keranjang terbaru (`CART_REMOVED`, bisa dibatalkan)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/cart/merge:
+    post:
+      tags: [Keranjang]
+      summary: Gabungkan keranjang tamu (localStorage) ke keranjang server
+      x-milestone: M1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [variant_id, quantity]
+                    properties:
+                      variant_id: { type: string, format: uuid }
+                      quantity: { type: integer, minimum: 1, maximum: 99 }
+      responses:
+        "200":
+          description: Keranjang hasil gabungan (`CART_MERGED`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/cart/validate:
+    post:
+      tags: [Keranjang]
+      summary: Validasi ulang harga & stok
+      description: Dipanggil setiap keranjang dibuka; harga server adalah sumber kebenaran (§6.3).
+      x-milestone: M1
+      responses:
+        "200":
+          description: Hasil validasi
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  # ============================================================
+  # WISHLIST & PENGINGAT STOK (§12.3)
+  # ============================================================
+  /api/v1/wishlist:
+    get:
+      tags: [Wishlist]
+      summary: Daftar wishlist
+      x-milestone: M1
+      responses:
+        "200":
+          description: Daftar wishlist
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WishlistItem" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/wishlist/{productId}:
+    parameters:
+      - name: productId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [Wishlist]
+      summary: Tambah ke wishlist
+      x-milestone: M1
+      responses:
+        "204":
+          description: Tersimpan (`WISH_ADDED`)
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    delete:
+      tags: [Wishlist]
+      summary: Hapus dari wishlist
+      x-milestone: M1
+      responses:
+        "204":
+          description: Dihapus (`WISH_REMOVED`, bisa dibatalkan)
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/stock-alerts/{variantId}:
+    parameters:
+      - name: variantId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Wishlist]
+      summary: Daftar pengingat restock
+      x-milestone: M1
+      responses:
+        "204":
+          description: Terdaftar (`STOCK_NOTIFY_ON`)
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    delete:
+      tags: [Wishlist]
+      summary: Batalkan pengingat restock
+      x-milestone: M1
+      responses:
+        "204":
+          description: Dibatalkan
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  # ============================================================
+  # CHECKOUT (§12.4)
+  # ============================================================
+  /api/v1/shipping/rates:
+    post:
+      tags: [Checkout]
+      summary: Hitung ongkos kirim (Biteship)
+      description: Hasil di-cache 5 menit (§6.4). Gagal hitung → `CHK_SHIPPING_FAIL`.
+      x-milestone: M2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [address_id]
+              properties:
+                address_id: { type: string, format: uuid }
+                courier: { type: string, examples: [jne, sicepat, anteraja] }
+      responses:
+        "200":
+          description: Daftar tarif
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ShippingRate" }
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "502":
+          description: Penyedia ongkir bermasalah (`CHK_SHIPPING_FAIL`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/vouchers/validate:
+    post:
+      tags: [Checkout]
+      summary: Validasi voucher terhadap keranjang
+      description: Rate limit 20/menit/pengguna untuk mencegah penebakan kode (§12.8).
+      x-milestone: M2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, maxLength: 40 }
+      responses:
+        "200":
+          description: Voucher berlaku (`VOUCHER_OK`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VoucherResult" }
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          description: Voucher tidak valid/kedaluwarsa/minimal belanja belum terpenuhi
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/orders:
+    post:
+      tags: [Checkout]
+      summary: Buat pesanan
+      description: |
+        WAJIB menyertakan header `Idempotency-Key` untuk mencegah pesanan ganda
+        (§6.4). Stok direservasi 15 menit; total SELALU dihitung server.
+      x-milestone: M2
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateOrderRequest" }
+      responses:
+        "201":
+          description: Pesanan dibuat (`CHK_ORDER_CREATED`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "409":
+          description: Stok berubah / klik ganda / voucher tidak berlaku
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    get:
+      tags: [Pesanan]
+      summary: Riwayat pesanan milik sendiri
+      x-milestone: M2
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/OrderStatus" }
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+      responses:
+        "200":
+          description: Daftar pesanan
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Order" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/orders/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathID"
+    get:
+      tags: [Pesanan]
+      summary: Detail pesanan + pelacakan
+      description: Kepemilikan dicek di query (`WHERE user_id = $1`) untuk mencegah IDOR (§13.1).
+      x-milestone: M2
+      responses:
+        "200":
+          description: Detail pesanan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderDetail" }
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/orders/{id}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/PathID"
+    post:
+      tags: [Pesanan]
+      summary: Batalkan pesanan
+      description: Hanya status yang diizinkan mesin status (§11.4). Setelah dikirim → `ORD_CANCEL_DENIED`.
+      x-milestone: M2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200":
+          description: Pesanan dibatalkan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/orders/{id}/pay:
+    parameters:
+      - $ref: "#/components/parameters/PathID"
+    post:
+      tags: [Pesanan]
+      summary: Buat atau ambil token pembayaran (Midtrans Snap)
+      x-milestone: M2
+      responses:
+        "200":
+          description: Token Snap
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, redirect_url, expires_at]
+                properties:
+                  token: { type: string }
+                  redirect_url: { type: string, format: uri }
+                  expires_at: { type: string, format: date-time }
+                  va_number: { type: string, nullable: true }
+                  qr_string: { type: string, nullable: true }
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "410":
+          description: Waktu pembayaran habis (`PAY_EXPIRED`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/orders/{id}/refund-request:
+    parameters:
+      - $ref: "#/components/parameters/PathID"
+    post:
+      tags: [Pesanan]
+      summary: Ajukan refund
+      x-milestone: M2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        "202":
+          description: Pengajuan diterima (`ORD_RETURN_REQ`)
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/orders/{id}/reorder:
+    parameters:
+      - $ref: "#/components/parameters/PathID"
+    post:
+      tags: [Pesanan]
+      summary: Pesan ulang isi pesanan
+      x-milestone: M2
+      responses:
+        "200":
+          description: Item ditambahkan ke keranjang (`ORD_REORDER`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/orders/{id}/items/{itemId}/review:
+    parameters:
+      - $ref: "#/components/parameters/PathID"
+      - name: itemId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Pesanan]
+      summary: Tulis ulasan
+      description: Hanya bila pesanan `completed` dan satu ulasan per item per pesanan (§6.8).
+      x-milestone: M2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rating]
+              properties:
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                body: { type: string, maxLength: 2000 }
+      responses:
+        "201":
+          description: Ulasan tersimpan (`REV_SUBMITTED`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Review" }
+        "403":
+          description: Belum boleh mengulas (`REV_NOT_ELIGIBLE`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  # ============================================================
+  # WEBHOOK (§12.5)
+  # ============================================================
+  /api/v1/webhooks/midtrans:
+    post:
+      tags: [Webhook]
+      summary: Callback Midtrans
+      description: |
+        Verifikasi signature (`SHA512(order_id + status_code + gross_amount + server_key)`),
+        cek `gross_amount` = total pesanan, idempoten lewat `payment_webhook_events`
+        dengan `UNIQUE (provider, event_id)` (§11.3 poin 5). TANPA autentikasi pengguna.
+      security: []
+      x-milestone: M2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Diterima (mungkin sudah pernah diproses)
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          description: Signature tidak valid
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/webhooks/shipping:
+    post:
+      tags: [Webhook]
+      summary: Callback Biteship (perubahan status kiriman)
+      security: []
+      x-milestone: M2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Diterima
+        "401":
+          description: Signature tidak valid
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  # ============================================================
+  # NOTIFIKASI (§12.6)
+  # ============================================================
+  /api/v1/notifications:
+    get:
+      tags: [Notifikasi]
+      summary: Riwayat notifikasi in-app (disimpan 90 hari)
+      x-milestone: M3
+      parameters:
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: unread_only
+          in: query
+          schema: { type: boolean, default: false }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        "200":
+          description: Daftar notifikasi
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, unread_count]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Notification" }
+                  unread_count: { type: integer }
+                  next_cursor: { type: string, nullable: true }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/notifications/stream:
+    get:
+      tags: [Notifikasi]
+      summary: Aliran notifikasi real-time (Server-Sent Events)
+      description: |
+        `text/event-stream`. Autentikasi lewat cookie. Event: `notification.created`,
+        `order.status_changed`, `stock.changed`, `promo.started`. Klien mundur ke
+        polling 30 detik bila gagal 3× (§8.7).
+
+        PENTING: rute ini didaftarkan di luar grup yang memasang timeout request,
+        agar koneksi panjang tidak diputus.
+      x-milestone: M3
+      responses:
+        "200":
+          description: Aliran SSE
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                examples:
+                  - |
+                    event: notification.created
+                    data: {"code":"PAY_SUCCESS","title":"Pembayaran diterima!","severity":"success"}
+
+                    : keep-alive
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/notifications/{id}/read:
+    parameters:
+      - $ref: "#/components/parameters/PathID"
+    post:
+      tags: [Notifikasi]
+      summary: Tandai satu notifikasi sudah dibaca
+      x-milestone: M3
+      responses:
+        "204":
+          description: Ditandai
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/notifications/read-all:
+    post:
+      tags: [Notifikasi]
+      summary: Tandai semua notifikasi sudah dibaca
+      x-milestone: M3
+      responses:
+        "204":
+          description: Ditandai
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/notification-preferences:
+    get:
+      tags: [Notifikasi]
+      summary: Preferensi notifikasi per kanal & kategori
+      x-milestone: M3
+      responses:
+        "200":
+          description: Preferensi
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/NotificationPreference" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    put:
+      tags: [Notifikasi]
+      summary: Simpan preferensi notifikasi
+      description: Kategori `security` dan `order` pada kanal email/in_app dipaksa tetap aktif oleh service (§8.6).
+      x-milestone: M3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: "#/components/schemas/NotificationPreference" }
+      responses:
+        "200":
+          description: Tersimpan
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/NotificationPreference" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/push-subscriptions:
+    post:
+      tags: [Notifikasi]
+      summary: Daftarkan langganan Web Push (VAPID)
+      x-milestone: M3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint, keys]
+              properties:
+                endpoint: { type: string, format: uri, maxLength: 2048 }
+                keys:
+                  type: object
+                  required: [p256dh, auth]
+                  properties:
+                    p256dh: { type: string }
+                    auth: { type: string }
+      responses:
+        "201":
+          description: Terdaftar
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    delete:
+      tags: [Notifikasi]
+      summary: Hapus langganan Web Push
+      x-milestone: M3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint]
+              properties:
+                endpoint: { type: string, format: uri }
+      responses:
+        "204":
+          description: Dihapus
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  # ============================================================
+  # ADMIN (§12.7)
+  # ============================================================
+  /api/v1/admin/dashboard:
+    get:
+      tags: [Admin]
+      summary: Ringkasan dashboard admin
+      x-milestone: M4
+      responses:
+        "200":
+          description: Ringkasan
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/admin/products:
+    get:
+      tags: [Admin]
+      summary: Daftar produk (termasuk yang non-aktif)
+      x-milestone: M4
+      responses:
+        "200":
+          description: Daftar produk
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductList" }
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    post:
+      tags: [Admin]
+      summary: Tambah produk
+      description: Setiap perubahan dicatat ke audit log (§13.2).
+      x-milestone: M4
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProductInput" }
+      responses:
+        "201":
+          description: Produk dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductDetail" }
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/admin/products/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathID"
+    patch:
+      tags: [Admin]
+      summary: Ubah produk
+      description: Perubahan harga >20% memicu konfirmasi (§8.6 ADM_PRICE_CHANGE_CONFIRM).
+      x-milestone: M4
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProductInput" }
+      responses:
+        "200":
+          description: Produk diperbarui
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductDetail" }
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    delete:
+      tags: [Admin]
+      summary: Hapus produk (soft delete)
+      description: Memicu konfirmasi kritis (§8.6 ADM_DELETE_CONFIRM). Pesanan lama tetap aman.
+      x-milestone: M4
+      responses:
+        "204":
+          description: Produk dihapus
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/admin/variants/{id}/stock:
+    parameters:
+      - $ref: "#/components/parameters/PathID"
+    post:
+      tags: [Admin]
+      summary: Sesuaikan stok manual
+      description: WAJIB menyertakan `reason` dan `note`; keduanya dicatat di `stock_movements` dan audit log (§12.7).
+      x-milestone: M4
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [delta, reason, note]
+              properties:
+                delta: { type: integer }
+                reason:
+                  type: string
+                  enum: [restock, adjustment, return, damage]
+                note: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        "200":
+          description: Stok diperbarui (`ADM_STOCK_ADJUSTED`)
+        "422":
+          description: Alasan/catatan kosong (`ADM_STOCK_REASON_REQ`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/admin/orders:
+    get:
+      tags: [Admin]
+      summary: Daftar pesanan dengan filter status/tanggal
+      x-milestone: M4
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/OrderStatus" }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Daftar pesanan
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Order" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/admin/orders/{id}/status:
+    parameters:
+      - $ref: "#/components/parameters/PathID"
+    post:
+      tags: [Admin]
+      summary: Ubah status pesanan
+      description: WAJIB lewat mesin status (§11.4); transisi ilegal → `ORD_INVALID_TRANSITION`.
+      x-milestone: M4
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { $ref: "#/components/schemas/OrderStatus" }
+                note: { type: string, maxLength: 500 }
+      responses:
+        "200":
+          description: Status diubah (`ADM_STATUS_CHANGED`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/admin/orders/{id}/shipment:
+    parameters:
+      - $ref: "#/components/parameters/PathID"
+    post:
+      tags: [Admin]
+      summary: Input resi / buat kiriman
+      x-milestone: M4
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [courier, tracking_no]
+              properties:
+                courier: { type: string }
+                tracking_no: { type: string, minLength: 4, maxLength: 60 }
+      responses:
+        "201":
+          description: Kiriman dibuat (`ORD_SHIPPED`)
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/admin/vouchers:
+    get:
+      tags: [Admin]
+      summary: Daftar voucher
+      x-milestone: M4
+      responses:
+        "200":
+          description: Daftar voucher
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Voucher" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+    post:
+      tags: [Admin]
+      summary: Buat voucher
+      x-milestone: M4
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VoucherInput" }
+      responses:
+        "201":
+          description: Voucher dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Voucher" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/admin/audit-logs:
+    get:
+      tags: [Admin]
+      summary: Baca audit log (hanya baca)
+      description: |
+        Filter aktor/entitas/tanggal + ekspor CSV. Tidak ada endpoint tulis:
+        audit log bersifat append-only dan dilindungi trigger (§11.2, §13.2).
+      x-milestone: M4
+      parameters:
+        - name: actor_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: entity
+          in: query
+          schema: { type: string }
+        - name: entity_id
+          in: query
+          schema: { type: string }
+        - name: action
+          in: query
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: format
+          in: query
+          schema: { type: string, enum: [json, csv], default: json }
+      responses:
+        "200":
+          description: Baris audit
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AuditLogEntry" }
+            text/csv:
+              schema: { type: string }
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  /api/v1/admin/users:
+    get:
+      tags: [Admin]
+      summary: Daftar pengguna (tanpa data sensitif berlebihan)
+      x-milestone: M4
+      responses:
+        "200":
+          description: Daftar pengguna
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/User" }
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+# ============================================================
+# KOMPONEN
+# ============================================================
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: kalengo_at
+      description: Access token JWT (15 menit), HttpOnly + Secure + SameSite=Lax.
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Double-submit token; wajib untuk POST/PUT/PATCH/DELETE.
+
+  parameters:
+    PathID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    NotImplemented:
+      description: |
+        Belum diimplementasikan pada milestone saat ini. Kontrak sudah ditetapkan
+        agar klien TypeScript bisa dibangkitkan lebih awal.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+          examples:
+            belumAda:
+              value:
+                error:
+                  code: API_NOT_FOUND
+                  message: Belum tersedia pada versi ini.
+                  request_id: 5f2b9c1e-0d3a-4a1e-9d21-7c1e2f0a9b44
+    ValidationError:
+      description: Isian tidak lolos validasi (`API_VALIDATION`)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+          examples:
+            field:
+              value:
+                error:
+                  code: API_VALIDATION
+                  message: Ada isian yang perlu diperbaiki.
+                  fields: { email: Format email tidak valid }
+                  request_id: 5f2b9c1e-0d3a-4a1e-9d21-7c1e2f0a9b44
+    Unauthorized:
+      description: Belum masuk atau sesi berakhir (`AUTH_SESSION_EXPIRED`)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    Forbidden:
+      description: Tidak punya akses (`API_FORBIDDEN`)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    NotFound:
+      description: Tidak ditemukan (`API_NOT_FOUND`)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    Conflict:
+      description: Konflik status / aturan bisnis (`409`)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    RateLimited:
+      description: Terlalu banyak permintaan (`API_RATE_LIMIT`)
+      headers:
+        Retry-After:
+          schema: { type: integer }
+          description: Detik sampai boleh mencoba lagi
+        X-RateLimit-Limit:
+          schema: { type: integer }
+        X-RateLimit-Remaining:
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  schemas:
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Sama dengan kode katalog §8.6 / registry apperr backend
+              examples: [CART_PRICE_CHANGED]
+            message: { type: string }
+            fields:
+              type: object
+              additionalProperties: { type: string }
+              description: Pesan validasi per field (untuk `API_VALIDATION`)
+            request_id: { type: string }
+
+    Readiness:
+      type: object
+      required: [status, checks]
+      properties:
+        status: { type: string, enum: [ready, degraded] }
+        version: { type: string }
+        uptime_seconds: { type: integer, format: int64 }
+        checks:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              status: { type: string, enum: [up, down] }
+              latency: { type: string }
+              error: { type: string }
+
+    User:
+      type: object
+      required: [id, email, full_name, role]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        full_name: { type: string, minLength: 2, maxLength: 100 }
+        phone: { type: string, nullable: true }
+        role: { type: string, enum: [customer, admin, staff] }
+        email_verified_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    RegisterRequest:
+      type: object
+      required: [email, password, full_name]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password:
+          type: string
+          minLength: 10
+          maxLength: 200
+          description: Minimal 10 karakter, tanpa batas karakter khusus (§13.1)
+        full_name: { type: string, minLength: 2, maxLength: 100 }
+        phone: { type: string, maxLength: 20, nullable: true }
+        birth_date: { type: string, format: date, nullable: true }
+        accept_terms: { type: boolean, const: true }
+        turnstile_token: { type: string, nullable: true }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        full_name: { type: string, minLength: 2, maxLength: 100 }
+        phone: { type: string, maxLength: 20, nullable: true }
+        birth_date: { type: string, format: date, nullable: true }
+
+    Address:
+      type: object
+      required: [id, label, recipient, phone, province, city, district, postal_code, street]
+      properties:
+        id: { type: string, format: uuid }
+        label: { type: string, maxLength: 40 }
+        recipient: { type: string, maxLength: 100 }
+        phone: { type: string, maxLength: 20 }
+        province: { type: string }
+        city: { type: string }
+        district: { type: string }
+        postal_code: { type: string, maxLength: 10 }
+        street: { type: string, maxLength: 300 }
+        notes: { type: string, nullable: true, maxLength: 300 }
+        area_id: { type: string, nullable: true, description: ID area Biteship }
+        is_default: { type: boolean }
+
+    AddressInput:
+      allOf:
+        - $ref: "#/components/schemas/Address"
+        - type: object
+          description: id diabaikan saat membuat alamat baru
+
+    UISettings:
+      type: object
+      properties:
+        notif_mode: { type: string, enum: [normal, calm, silent] }
+        reduce_motion: { type: boolean }
+        sound_enabled: { type: boolean }
+
+    Category:
+      type: object
+      required: [id, slug, name]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        name: { type: string }
+        parent_id: { type: string, format: uuid, nullable: true }
+        sort_order: { type: integer }
+
+    Brand:
+      type: object
+      required: [id, slug, name]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        name: { type: string }
+
+    Product:
+      type: object
+      required: [id, slug, name]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        name: { type: string }
+        flavor: { type: string, nullable: true }
+        brand: { $ref: "#/components/schemas/Brand", nullable: true }
+        category: { $ref: "#/components/schemas/Category", nullable: true }
+        mascot_svg_key:
+          type: string
+          nullable: true
+          description: Kunci aset ilustrasi kaleng (§3.6)
+        requires_age_verification: { type: boolean }
+        price_from: { type: integer, format: int64, description: Rupiah bulat }
+        stock_label:
+          type: string
+          description: Label stok terbulatkan, mis. "tersisa ≤10" atau "habis"
+          examples: ["tersisa ≤10"]
+        badges:
+          type: array
+          items: { type: string, enum: [Baru, Terlaris, Rendah Gula] }
+
+    ProductVariant:
+      type: object
+      required: [id, sku, volume_ml, pack_size, price, weight_gram]
+      properties:
+        id: { type: string, format: uuid }
+        sku: { type: string }
+        volume_ml: { type: integer, examples: [330] }
+        pack_size: { type: integer, examples: [6] }
+        price: { type: integer, format: int64 }
+        compare_at_price: { type: integer, format: int64, nullable: true }
+        weight_gram: { type: integer }
+        max_per_order: { type: integer, default: 24 }
+        stock_label: { type: string, examples: ["tersisa ≤10"] }
+        available: { type: boolean }
+
+    ProductDetail:
+      allOf:
+        - $ref: "#/components/schemas/Product"
+        - type: object
+          properties:
+            description: { type: string }
+            nutrition:
+              type: object
+              additionalProperties: true
+              description: Nilai gizi (jsonb)
+            images:
+              type: array
+              items:
+                type: object
+                properties:
+                  url: { type: string, format: uri }
+                  alt: { type: string }
+            variants:
+              type: array
+              items: { $ref: "#/components/schemas/ProductVariant" }
+            rating_avg: { type: number, nullable: true }
+            rating_count: { type: integer }
+
+    ProductInput:
+      type: object
+      required: [slug, name]
+      properties:
+        slug: { type: string, pattern: "^[a-z0-9-]{3,80}$" }
+        name: { type: string, maxLength: 150 }
+        description: { type: string, maxLength: 4000 }
+        brand_id: { type: string, format: uuid, nullable: true }
+        category_id: { type: string, format: uuid, nullable: true }
+        flavor: { type: string, maxLength: 60, nullable: true }
+        nutrition: { type: object, additionalProperties: true }
+        mascot_svg_key: { type: string, nullable: true }
+        requires_age_verification: { type: boolean }
+        is_active: { type: boolean }
+
+    ProductList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Product" }
+        next_cursor: { type: string, nullable: true }
+        total: { type: integer }
+
+    Cart:
+      type: object
+      required: [items, subtotal, total]
+      properties:
+        id: { type: string, format: uuid }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/CartItem" }
+        subtotal: { type: integer, format: int64 }
+        discount: { type: integer, format: int64 }
+        shipping_estimate: { type: integer, format: int64, nullable: true }
+        total: { type: integer, format: int64 }
+        free_shipping_remaining:
+          type: integer
+          format: int64
+          nullable: true
+          description: Sisa belanja untuk gratis ongkir (§8.6 CART_FREE_SHIPPING_NEAR)
+        warnings:
+          type: array
+          description: Kode notifikasi peringatan, mis. CART_PRICE_CHANGED
+          items: { type: string }
+
+    CartItem:
+      type: object
+      required: [variant_id, quantity, unit_price, line_total]
+      properties:
+        variant_id: { type: string, format: uuid }
+        product_id: { type: string, format: uuid }
+        product_name: { type: string }
+        variant_label: { type: string }
+        quantity: { type: integer, minimum: 1, maximum: 99 }
+        unit_price: { type: integer, format: int64 }
+        added_price:
+          type: integer
+          format: int64
+          description: Harga saat ditambahkan; beda dengan unit_price memicu CART_PRICE_CHANGED
+        line_total: { type: integer, format: int64 }
+        max_per_order: { type: integer }
+        available: { type: boolean }
+
+    WishlistItem:
+      type: object
+      required: [product_id]
+      properties:
+        product_id: { type: string, format: uuid }
+        product: { $ref: "#/components/schemas/Product" }
+        created_at: { type: string, format: date-time }
+        price_dropped: { type: boolean }
+
+    ShippingRate:
+      type: object
+      required: [courier, service, cost, etd]
+      properties:
+        courier: { type: string, examples: [jne] }
+        service: { type: string, examples: ["REG"] }
+        description: { type: string, nullable: true }
+        cost: { type: integer, format: int64 }
+        etd: { type: string, examples: ["2-3 hari"] }
+        cache_ttl_seconds: { type: integer }
+
+    VoucherResult:
+      type: object
+      required: [code, type, discount]
+      properties:
+        code: { type: string }
+        type: { type: string, enum: [percent, fixed, free_shipping] }
+        discount: { type: integer, format: int64 }
+        free_shipping: { type: boolean }
+        message: { type: string, examples: ["Voucher dipakai! Hemat Rp12.500."] }
+
+    Voucher:
+      type: object
+      required: [id, code, type, value, starts_at, ends_at]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        type: { type: string, enum: [percent, fixed, free_shipping] }
+        value: { type: integer, format: int64, description: Persen (1-100) atau rupiah }
+        max_discount: { type: integer, format: int64, nullable: true }
+        min_spend: { type: integer, format: int64 }
+        usage_limit: { type: integer, nullable: true }
+        usage_count: { type: integer }
+        per_user_limit: { type: integer }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        is_active: { type: boolean }
+
+    VoucherInput:
+      type: object
+      required: [code, type, value, starts_at, ends_at]
+      properties:
+        code: { type: string, pattern: "^[A-Z0-9_-]{3,40}$" }
+        type: { type: string, enum: [percent, fixed, free_shipping] }
+        value: { type: integer, format: int64, minimum: 1 }
+        max_discount: { type: integer, format: int64, nullable: true }
+        min_spend: { type: integer, format: int64, minimum: 0 }
+        usage_limit: { type: integer, nullable: true }
+        per_user_limit: { type: integer, minimum: 1, default: 1 }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+
+    OrderStatus:
+      type: string
+      enum:
+        - pending_payment
+        - paid
+        - processing
+        - shipped
+        - delivered
+        - completed
+        - cancelled
+        - expired
+        - refund_requested
+        - refunded
+
+    CreateOrderRequest:
+      type: object
+      required: [address_id, courier, courier_service, accept_terms]
+      properties:
+        address_id: { type: string, format: uuid }
+        courier: { type: string }
+        courier_service: { type: string }
+        voucher_code: { type: string, nullable: true }
+        notes: { type: string, maxLength: 500, nullable: true }
+        accept_terms: { type: boolean, const: true }
+
+    Order:
+      type: object
+      required: [id, order_no, status, subtotal, discount, shipping_cost, total, expires_at]
+      properties:
+        id: { type: string, format: uuid }
+        order_no: { type: string, examples: ["KLG-20261019-0001"] }
+        status: { $ref: "#/components/schemas/OrderStatus" }
+        subtotal: { type: integer, format: int64 }
+        discount: { type: integer, format: int64 }
+        shipping_cost: { type: integer, format: int64 }
+        total: { type: integer, format: int64 }
+        courier: { type: string, nullable: true }
+        courier_service: { type: string, nullable: true }
+        expires_at:
+          type: string
+          format: date-time
+          description: Batas bayar; setelah ini reservasi stok dilepas (§6.4)
+        paid_at: { type: string, format: date-time, nullable: true }
+        shipped_at: { type: string, format: date-time, nullable: true }
+        delivered_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/OrderItem" }
+
+    OrderDetail:
+      allOf:
+        - $ref: "#/components/schemas/Order"
+        - type: object
+          properties:
+            address_snapshot: { type: object, additionalProperties: true }
+            payment:
+              type: object
+              properties:
+                method: { type: string, nullable: true }
+                status: { type: string, enum: [pending, paid, failed, expired, refunded, partial_refund] }
+                amount: { type: integer, format: int64 }
+            shipment:
+              type: object
+              nullable: true
+              properties:
+                courier: { type: string }
+                tracking_no: { type: string, nullable: true }
+                status: { type: string }
+                events: { type: array, items: { type: object, additionalProperties: true } }
+            status_history:
+              type: array
+              items:
+                type: object
+                properties:
+                  from_status: { $ref: "#/components/schemas/OrderStatus", nullable: true }
+                  to_status: { $ref: "#/components/schemas/OrderStatus" }
+                  note: { type: string, nullable: true }
+                  created_at: { type: string, format: date-time }
+
+    OrderItem:
+      type: object
+      required: [id, sku, unit_price, quantity, line_total]
+      properties:
+        id: { type: string, format: uuid }
+        variant_id: { type: string, format: uuid }
+        product_name: { type: string, description: Snapshot saat pembelian }
+        variant_label: { type: string }
+        sku: { type: string }
+        unit_price: { type: integer, format: int64 }
+        quantity: { type: integer }
+        line_total: { type: integer, format: int64 }
+        reviewed: { type: boolean }
+
+    Review:
+      type: object
+      required: [id, rating, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        user_name: { type: string, description: Nama yang sudah disamarkan sebagian }
+        product_id: { type: string, format: uuid }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        body: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    Notification:
+      type: object
+      required: [id, code, severity, title, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        code:
+          type: string
+          description: Kode katalog §8.6
+          examples: [PAY_SUCCESS]
+        severity: { type: string, enum: [success, info, warning, error, critical] }
+        title: { type: string }
+        body: { type: string, nullable: true }
+        data: { type: object, additionalProperties: true }
+        read_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    NotificationPreference:
+      type: object
+      required: [channel, category, enabled]
+      properties:
+        channel: { type: string, enum: [in_app, email, push] }
+        category:
+          type: string
+          enum: [order, promo, stock, security, account, system]
+        enabled: { type: boolean }
+
+    AuditLogEntry:
+      type: object
+      required: [id, occurred_at, action, entity]
+      properties:
+        id: { type: integer, format: int64 }
+        occurred_at: { type: string, format: date-time }
+        actor_id: { type: string, format: uuid, nullable: true }
+        actor_role: { type: string, nullable: true }
+        ip: { type: string, nullable: true }
+        request_id: { type: string, nullable: true }
+        action: { type: string, examples: [product.price.update] }
+        entity: { type: string, examples: [product] }
+        entity_id: { type: string, nullable: true }
+        before: { type: object, additionalProperties: true, nullable: true }
+        after: { type: object, additionalProperties: true, nullable: true }

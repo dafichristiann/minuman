@@ -1,0 +1,43 @@
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# ---- Secrets (JANGAN pernah commit) ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# ---- Go ----
+/apps/api/bin/
+/apps/api/tmp/
+*.test
+*.out
+coverage.out
+coverage.html
+
+# ---- Node / web ----
+node_modules/
+/apps/web/dist/
+/apps/web/.vite/
+*.tsbuildinfo
+npm-debug.log*
+pnpm-debug.log*
+
+# ---- Build & test artifacts ----
+/artifacts/
+/coverage/
+*.log
+
+# ---- Lokal ----
+/docker/data/
+/tmp/
+
+# CATATAN: internal/repo/sqlcgen/ SENGAJA tidak diabaikan.
+# Kode hasil sqlc di-commit agar CI reproducible tanpa perlu install sqlc.
