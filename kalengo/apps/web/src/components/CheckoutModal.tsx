@@ -20,6 +20,7 @@ import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import { useToast } from "../context/useToast";
 import { formatIdr } from "../utils/format";
+import { WhatsAppVerifyModal } from "./WhatsAppVerifyModal";
 
 export interface CheckoutModalProps {
   isOpen: boolean;
@@ -41,6 +42,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   // Alamat pengiriman
   const [recipient, setRecipient] = useState(user?.full_name || "");
   const [phone, setPhone] = useState(user?.phone || "");
+  const [verifiedPhone, setVerifiedPhone] = useState<string | null>(null);
+  const [showWaModal, setShowWaModal] = useState<boolean>(false);
   const [street, setStreet] = useState("");
   const [province, setProvince] = useState("");
   const [city, setCity] = useState("");
@@ -99,6 +102,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   // b) Nomor HP: format Indonesia fleksibel (08xx, 628xx, +628xx, min 9 - max 14 digit)
   const cleanedPhone = phone.trim().replace(/[\s-]/g, "");
   const isPhoneValid = /^(?:\+62|62|0)8[0-9]{7,12}$/.test(cleanedPhone);
+  const isPhoneVerified = Boolean(
+    isPhoneValid && verifiedPhone && verifiedPhone === phone.trim(),
+  );
 
   // c) Alamat Jalan: minimal 10 huruf / karakter
   const isStreetValid = street.trim().length >= 10;
@@ -116,6 +122,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const isFormValid =
     isRecipientValid &&
     isPhoneValid &&
+    isPhoneVerified &&
     isStreetValid &&
     isProvinceValid &&
     isCityValid &&
@@ -286,6 +293,26 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const handleSubmitCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const isEverythingElseValid =
+      isRecipientValid &&
+      isPhoneValid &&
+      isStreetValid &&
+      isProvinceValid &&
+      isCityValid &&
+      isDistrictValid &&
+      isPostalCodeValid &&
+      isTermsValid;
+
+    if (isEverythingElseValid && !isPhoneVerified) {
+      toast.error(
+        "Silakan verifikasi nomor WhatsApp Anda terlebih dahulu.",
+        "Verifikasi WhatsApp",
+      );
+      setShowWaModal(true);
+      return;
+    }
+
     if (!isFormValid) {
       setTouched({
         recipient: true,
@@ -316,6 +343,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     const shippingCost = voucherResult?.free_shipping ? 0 : activeShipping.cost;
     const discountAmount = voucherResult?.discount || 0;
     const totalPayment = Math.max(0, subtotal - discountAmount + shippingCost);
+    const verifiedNotes = notes.trim()
+      ? `${notes.trim()} (WhatsApp Terverifikasi)`
+      : "(WhatsApp Terverifikasi)";
 
     // Fallback pesanan lokal untuk kelancaran tamu (guest checkout) dan demo
     const fallbackOrder: Order = {
@@ -371,16 +401,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             courier: activeShipping.courier,
             courier_service: activeShipping.service,
             voucher_code: voucherResult?.code || null,
-            notes: notes.trim() || null,
+            notes: verifiedNotes,
             accept_terms: true,
           },
           idempotencyKey,
         );
 
         try {
-          localStorage.setItem("kalengo_last_order", JSON.stringify(serverOrder));
+          sessionStorage.setItem("kalengo_last_order", JSON.stringify(serverOrder));
         } catch {
-          // localStorage opsional
+          // sessionStorage opsional
         }
 
         await clearCart();
@@ -396,9 +426,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     // Guest checkout / offline fallback
     try {
-      localStorage.setItem("kalengo_last_order", JSON.stringify(fallbackOrder));
+      sessionStorage.setItem("kalengo_last_order", JSON.stringify(fallbackOrder));
     } catch {
-      // localStorage opsional
+      // sessionStorage opsional
     }
 
     await clearCart();
@@ -552,7 +582,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   aria-invalid={touched.phone ? !isPhoneValid : undefined}
                   aria-describedby="phone-feedback"
                   onChange={(e) => {
-                    setPhone(e.target.value);
+                    const val = e.target.value;
+                    setPhone(val);
+                    if (verifiedPhone && val.trim() !== verifiedPhone) {
+                      setVerifiedPhone(null);
+                    }
                     markTouched("phone");
                   }}
                   onBlur={() => markTouched("phone")}
@@ -563,25 +597,71 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         ? "input--valid"
                         : "input--invalid"
                       : ""
-                  } ${isShaking && !isPhoneValid ? "input--shake" : ""}`}
+                  } ${isShaking && (!isPhoneValid || !isPhoneVerified) ? "input--shake" : ""}`}
                   style={{
                     width: "100%",
                     padding: "0.5rem 0.75rem",
                     fontWeight: 700,
                   }}
                 />
-                {touched.phone && (
-                  <div
-                    id="phone-feedback"
-                    role="status"
-                    aria-live="polite"
-                    className={isPhoneValid ? "field-feedback--valid" : "field-feedback--invalid"}
-                  >
-                    {isPhoneValid
-                      ? "✓ Nomor HP Valid"
-                      : "✕ Format tidak valid (contoh: 081234567890)"}
-                  </div>
-                )}
+                <div id="phone-feedback" role="status" aria-live="polite" style={{ marginTop: "0.25rem" }}>
+                  {!isPhoneValid ? (
+                    touched.phone && (
+                      <div className="field-feedback--invalid">
+                        ✕ Format tidak valid (contoh: 081234567890)
+                      </div>
+                    )
+                  ) : !isPhoneVerified ? (
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.4rem", marginTop: "0.25rem" }}>
+                      <span
+                        className="badge"
+                        style={{
+                          backgroundColor: "var(--lemon, #ffd23f)",
+                          color: "var(--ink, #1b1b2f)",
+                          fontSize: "0.6875rem",
+                          padding: "0.15rem 0.45rem",
+                          fontWeight: 800,
+                        }}
+                      >
+                        ⚠️ Belum Terverifikasi
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowWaModal(true)}
+                        className="btn btn--sm btn--whatsapp"
+                        style={{
+                          backgroundColor: "#25D366",
+                          color: "#fff",
+                          fontSize: "0.75rem",
+                          padding: "0.2rem 0.55rem",
+                          minHeight: "28px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.25rem",
+                          fontWeight: 800,
+                        }}
+                      >
+                        💬 Verifikasi WhatsApp
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: "0.25rem" }}>
+                      <span
+                        className="badge badge--verified"
+                        style={{
+                          borderColor: "#3ddc97",
+                          backgroundColor: "#f2fcf6",
+                          color: "#0f766e",
+                          fontSize: "0.6875rem",
+                          padding: "0.15rem 0.45rem",
+                          fontWeight: 900,
+                        }}
+                      >
+                        ✓ Terverifikasi WhatsApp 🛡️
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1025,6 +1105,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </button>
           </footer>
         </form>
+
+        <WhatsAppVerifyModal
+          isOpen={showWaModal}
+          phone={phone.trim()}
+          onClose={() => setShowWaModal(false)}
+          onVerified={(vPhone) => {
+            setVerifiedPhone(vPhone);
+            setShowWaModal(false);
+          }}
+        />
       </div>
     </div>
   );

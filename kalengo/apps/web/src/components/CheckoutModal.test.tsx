@@ -70,7 +70,7 @@ describe("CheckoutModal", () => {
     expect(recipientInput).toHaveClass("input--valid");
   });
 
-  test("validasi nomor HP format Indonesia", () => {
+  test("validasi nomor HP format Indonesia dan indikator status verifikasi", async () => {
     render(
       <CheckoutModal
         isOpen={true}
@@ -89,10 +89,29 @@ describe("CheckoutModal", () => {
     ).toBeInTheDocument();
     expect(phoneInput).toHaveClass("input--invalid");
 
-    // Nomor valid Indonesia
+    // Nomor valid Indonesia -> Belum Terverifikasi & muncul tombol verifikasi
     fireEvent.change(phoneInput, { target: { value: "081234567890" } });
-    expect(screen.getByText(/✓ Nomor HP Valid/i)).toBeInTheDocument();
+    expect(screen.getByText(/⚠️ Belum Terverifikasi/i)).toBeInTheDocument();
+    const verifyWaBtn = screen.getByRole("button", { name: /💬 Verifikasi WhatsApp/i });
+    expect(verifyWaBtn).toBeInTheDocument();
     expect(phoneInput).toHaveClass("input--valid");
+
+    // Klik verifikasi -> buka WhatsAppVerifyModal
+    fireEvent.click(verifyWaBtn);
+    expect(screen.getByText(/Verifikasi Nomor WhatsApp 💬/i)).toBeInTheDocument();
+
+    // Verifikasi dengan kode simulasi
+    fireEvent.click(screen.getByRole("button", { name: /Gunakan Kode Ini/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Verifikasi Sekarang/i }));
+
+    // Setelah terverifikasi -> badge terverifikasi muncul
+    await waitFor(() => {
+      expect(screen.getByText(/✓ Terverifikasi WhatsApp 🛡️/i)).toBeInTheDocument();
+    });
+
+    // Jika nomor diubah, status verifikasi kembali belum terverifikasi
+    fireEvent.change(phoneInput, { target: { value: "081234567899" } });
+    expect(screen.getByText(/⚠️ Belum Terverifikasi/i)).toBeInTheDocument();
   });
 
   test("validasi alamat jalan dan kode pos", () => {
@@ -150,7 +169,7 @@ describe("CheckoutModal", () => {
     );
   });
 
-  test("menampilkan badge ✓ Data Lengkap dan langsung memproses pesanan saat valid", async () => {
+  test("menampilkan badge ✓ Data Lengkap dan memproses pesanan setelah verifikasi WhatsApp", async () => {
     const onClose = vi.fn();
     const onOrderCreated = vi.fn();
 
@@ -185,14 +204,30 @@ describe("CheckoutModal", () => {
       target: { value: "11530" },
     });
 
-    // Badge data lengkap muncul
-    expect(screen.getByText("✓ Data Lengkap")).toBeInTheDocument();
-
-    // Klik Bayar Sekarang
+    // Coba submit sebelum nomor WhatsApp diverifikasi
     const submitBtn = screen.getByRole("button", { name: /bayar sekarang/i });
     fireEvent.click(submitBtn);
 
-    // Langsung memproses pesanan tanpa modal bersarang yang macet
+    // Menampilkan toast peringatan dan otomatis membuka WhatsAppVerifyModal
+    expect(mockToast.error).toHaveBeenCalledWith(
+      "Silakan verifikasi nomor WhatsApp Anda terlebih dahulu.",
+      "Verifikasi WhatsApp",
+    );
+    expect(screen.getByText(/Verifikasi Nomor WhatsApp 💬/i)).toBeInTheDocument();
+
+    // Verifikasi WhatsApp
+    fireEvent.click(screen.getByRole("button", { name: /Gunakan Kode Ini/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Verifikasi Sekarang/i }));
+
+    // Setelah modal tertutup dan terverifikasi, badge data lengkap muncul
+    await waitFor(() => {
+      expect(screen.getByText("✓ Data Lengkap")).toBeInTheDocument();
+      expect(screen.getByText(/✓ Terverifikasi WhatsApp 🛡️/i)).toBeInTheDocument();
+    });
+
+    // Klik Bayar Sekarang setelah data lengkap & terverifikasi
+    fireEvent.click(submitBtn);
+
     await waitFor(() => {
       expect(onClose).toHaveBeenCalled();
       expect(onOrderCreated).toHaveBeenCalledWith(
@@ -210,7 +245,7 @@ describe("CheckoutModal", () => {
     });
   });
 
-  test("memproses checkout tamu secara andal dengan nomor +62 tanpa hambatan", async () => {
+  test("memproses checkout tamu secara andal dengan nomor +62 dan verifikasi WhatsApp", async () => {
     const onClose = vi.fn();
     const onOrderCreated = vi.fn();
 
@@ -243,6 +278,18 @@ describe("CheckoutModal", () => {
     });
     fireEvent.change(screen.getByLabelText(/kode pos/i), {
       target: { value: "10110" },
+    });
+
+    // Buka verifikasi WA lewat tombol
+    const verifyWaBtn = screen.getByRole("button", { name: /💬 Verifikasi WhatsApp/i });
+    fireEvent.click(verifyWaBtn);
+
+    // Verifikasi
+    fireEvent.click(screen.getByRole("button", { name: /Gunakan Kode Ini/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Verifikasi Sekarang/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/✓ Terverifikasi WhatsApp 🛡️/i)).toBeInTheDocument();
     });
 
     const submitBtn = screen.getByRole("button", { name: /bayar sekarang/i });
@@ -282,7 +329,7 @@ describe("CheckoutModal", () => {
     const distOpt = screen.getByRole("option", { name: /coblong/i });
     fireEvent.click(distOpt);
 
-    const postalInput = screen.getByLabelText(/kode pos/i) as HTMLInputElement;
+    const postalInput = screen.getByLabelText<HTMLInputElement>(/kode pos/i);
     expect(postalInput.value).toBe("40132");
   });
 });

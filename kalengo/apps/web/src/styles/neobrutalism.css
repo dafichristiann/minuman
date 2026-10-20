@@ -104,6 +104,14 @@
   color: var(--ink, #1b1b2f);
 }
 
+.btn--whatsapp {
+  background-color: #25d366;
+  color: #ffffff;
+}
+.btn--whatsapp:hover:not(:disabled) {
+  background-color: #20ba5a;
+}
+
 .btn--pill {
   border-radius: 999px;
   padding: 0.625rem 1.5rem;
@@ -173,6 +181,12 @@
 .badge--berry {
   background-color: var(--berry, #d6336c);
   color: #ffffff;
+}
+
+.badge--verified {
+  background-color: var(--mint, #3ddc97);
+  color: var(--ink, #1b1b2f);
+  border: 2px solid var(--ink, #1b1b2f);
 }
 
 /* ------------------------------------------------------------
