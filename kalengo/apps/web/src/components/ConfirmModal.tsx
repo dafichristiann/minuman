@@ -150,6 +150,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
                 lineHeight: 1.5,
                 margin: 0,
                 fontWeight: 600,
+                whiteSpace: "pre-line",
               }}
             >
               {message}

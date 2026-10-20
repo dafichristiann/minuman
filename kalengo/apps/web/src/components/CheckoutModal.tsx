@@ -41,6 +41,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [postalCode, setPostalCode] = useState("12190");
   const [addresses, setAddresses] = useState<readonly Address[]>([]);
 
+  // Validation & Touched state
+  const [touched, setTouched] = useState<Record<string, boolean>>({
+    recipient: false,
+    phone: false,
+    street: false,
+    city: false,
+    province: false,
+    postalCode: false,
+    acceptTerms: false,
+  });
+  const [isShaking, setIsShaking] = useState(false);
+
   // Kurir pengiriman
   const couriers: ShippingRate[] = [
     { courier: "jne", service: "REG", cost: 15000, etd: "1-2 hari", description: "JNE Regular Cepat" },
@@ -69,6 +81,45 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showOrderConfirm, setShowOrderConfirm] = useState(false);
+
+  // Validasi aturan spesifik
+  // a) Nama Penerima: min 2, max 100 karakter, minimal ada alfabet
+  const isRecipientValid =
+    recipient.trim().length >= 2 &&
+    recipient.trim().length <= 100 &&
+    /[a-zA-Z]/.test(recipient);
+
+  // b) Nomor HP: format Indonesia ^(?:\+62|62|0)8[1-9][0-9]{7,11}$
+  const isPhoneValid = /^(?:\+62|62|0)8[1-9][0-9]{7,11}$/.test(
+    phone.trim().replace(/[\s-]/g, ""),
+  );
+
+  // c) Alamat Jalan: min 10 karakter
+  const isStreetValid = street.trim().length >= 10;
+
+  // d) Kota & Provinsi: min 3 karakter
+  const isCityValid = city.trim().length >= 3;
+  const isProvinceValid = province.trim().length >= 3;
+
+  // e) Kode Pos: tepat 5 digit angka ^[0-9]{5}$
+  const isPostalCodeValid = /^[0-9]{5}$/.test(postalCode.trim());
+
+  // f) Syarat & Ketentuan: harus dicentang
+  const isTermsValid = acceptTerms;
+
+  // Status validasi form keseluruhan
+  const isFormValid =
+    isRecipientValid &&
+    isPhoneValid &&
+    isStreetValid &&
+    isCityValid &&
+    isProvinceValid &&
+    isPostalCodeValid &&
+    isTermsValid;
+
+  const markTouched = (field: string) => {
+    setTouched((prev) => (prev[field] ? prev : { ...prev, [field]: true }));
+  };
 
   // Muat alamat jika user sudah login
   useEffect(() => {
@@ -126,7 +177,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         setVoucherError(err.message);
         toast.error(err.message, "Voucher Gagal");
       } else {
-        // Fallback untuk kode voucher seeded lokal
         const upper = voucherCode.trim().toUpperCase();
         if (upper === "NGOPI10" || upper === "DISKON10") {
           const discount = Math.round(subtotal * 0.1);
@@ -176,12 +226,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const handleOpenOrderConfirm = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!acceptTerms) {
-      setErrorMessage("Mohon setujui syarat dan ketentuan pemesanan.");
-      return;
-    }
-    if (!recipient.trim() || !phone.trim() || !street.trim()) {
-      setErrorMessage("Mohon lengkapi nama penerima, nomor HP, dan alamat pengiriman.");
+    if (!isFormValid) {
+      setTouched({
+        recipient: true,
+        phone: true,
+        street: true,
+        city: true,
+        province: true,
+        postalCode: true,
+        acceptTerms: true,
+      });
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 600);
+      toast.error(
+        "Mohon perbaiki isian yang belum sesuai sebelum melanjutkan.",
+        "Validasi Gagal",
+      );
       return;
     }
     setShowOrderConfirm(true);
@@ -234,12 +294,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 401) {
-          // Belum masuk -> arahkan untuk masuk
           onRequireAuth();
           return;
         }
 
-        // Tampilkan pesan validasi / bisnis dari API (mis. stok berubah, voucher min spend)
         if (err.status === 409 || err.status === 422 || err.status === 400) {
           setErrorMessage(err.message);
           toast.error(err.message, "Pemesanan Gagal");
@@ -309,7 +367,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           </button>
         </header>
 
-        <form onSubmit={handleOpenOrderConfirm} className="modal-body" style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+        <form
+          onSubmit={handleOpenOrderConfirm}
+          noValidate
+          className="modal-body"
+          style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
+        >
           {errorMessage && (
             <div
               role="alert"
@@ -358,95 +421,259 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               1. Alamat Tujuan
             </h3>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-              <div>
-                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, marginBottom: "0.25rem" }}>
+              <div className="input-group">
+                <label
+                  htmlFor="checkout-recipient"
+                  style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, marginBottom: "0.15rem" }}
+                >
                   Nama Penerima *
                 </label>
                 <input
+                  id="checkout-recipient"
                   type="text"
                   required
                   value={recipient}
-                  onChange={(e) => setRecipient(e.target.value)}
+                  aria-invalid={touched.recipient ? !isRecipientValid : undefined}
+                  aria-describedby="recipient-feedback"
+                  onChange={(e) => {
+                    setRecipient(e.target.value);
+                    markTouched("recipient");
+                  }}
+                  onBlur={() => markTouched("recipient")}
                   placeholder="Nama Lengkap"
+                  className={`${
+                    touched.recipient
+                      ? isRecipientValid
+                        ? "input--valid"
+                        : "input--invalid"
+                      : ""
+                  } ${isShaking && !isRecipientValid ? "input--shake" : ""}`}
                   style={{
                     width: "100%",
                     padding: "0.5rem 0.75rem",
-                    border: "2px solid #1b1b2f",
-                    borderRadius: "0.5rem",
                     fontWeight: 700,
                   }}
                 />
+                {touched.recipient && (
+                  <div
+                    id="recipient-feedback"
+                    role="status"
+                    aria-live="polite"
+                    className={isRecipientValid ? "field-feedback--valid" : "field-feedback--invalid"}
+                  >
+                    {isRecipientValid ? "✓ Nama Valid" : "✕ Minimal 2 karakter alfabet"}
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, marginBottom: "0.25rem" }}>
+              <div className="input-group">
+                <label
+                  htmlFor="checkout-phone"
+                  style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, marginBottom: "0.15rem" }}
+                >
                   Nomor HP / WhatsApp *
                 </label>
                 <input
+                  id="checkout-phone"
                   type="tel"
                   required
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="08123456789"
+                  aria-invalid={touched.phone ? !isPhoneValid : undefined}
+                  aria-describedby="phone-feedback"
+                  onChange={(e) => {
+                    setPhone(e.target.value);
+                    markTouched("phone");
+                  }}
+                  onBlur={() => markTouched("phone")}
+                  placeholder="081234567890"
+                  className={`${
+                    touched.phone
+                      ? isPhoneValid
+                        ? "input--valid"
+                        : "input--invalid"
+                      : ""
+                  } ${isShaking && !isPhoneValid ? "input--shake" : ""}`}
                   style={{
                     width: "100%",
                     padding: "0.5rem 0.75rem",
-                    border: "2px solid #1b1b2f",
-                    borderRadius: "0.5rem",
                     fontWeight: 700,
                   }}
                 />
+                {touched.phone && (
+                  <div
+                    id="phone-feedback"
+                    role="status"
+                    aria-live="polite"
+                    className={isPhoneValid ? "field-feedback--valid" : "field-feedback--invalid"}
+                  >
+                    {isPhoneValid
+                      ? "✓ Nomor HP Valid"
+                      : "✕ Format tidak valid (contoh: 081234567890)"}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div style={{ marginTop: "0.75rem" }}>
-              <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, marginBottom: "0.25rem" }}>
-                Alamat Lengkap *
+            <div className="input-group" style={{ marginTop: "0.75rem" }}>
+              <label
+                htmlFor="checkout-street"
+                style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, marginBottom: "0.15rem" }}
+              >
+                Alamat Jalan & Patokan *
               </label>
               <textarea
+                id="checkout-street"
                 required
                 rows={2}
                 value={street}
-                onChange={(e) => setStreet(e.target.value)}
-                placeholder="Nama jalan, nomor rumah, RT/RW, kelurahan, kecamatan"
+                aria-invalid={touched.street ? !isStreetValid : undefined}
+                aria-describedby="street-feedback"
+                onChange={(e) => {
+                  setStreet(e.target.value);
+                  markTouched("street");
+                }}
+                onBlur={() => markTouched("street")}
+                placeholder="Nama jalan, nomor rumah, RT/RW, kelurahan, kecamatan atau patokan"
+                className={`${
+                  touched.street
+                    ? isStreetValid
+                      ? "input--valid"
+                      : "input--invalid"
+                    : ""
+                } ${isShaking && !isStreetValid ? "input--shake" : ""}`}
                 style={{
                   width: "100%",
                   padding: "0.5rem 0.75rem",
-                  border: "2px solid #1b1b2f",
-                  borderRadius: "0.5rem",
                   fontWeight: 700,
                   fontFamily: "inherit",
                 }}
               />
+              {touched.street && (
+                <div
+                  id="street-feedback"
+                  role="status"
+                  aria-live="polite"
+                  className={isStreetValid ? "field-feedback--valid" : "field-feedback--invalid"}
+                >
+                  {isStreetValid
+                    ? "✓ Alamat Lengkap"
+                    : "✕ Alamat minimal 10 karakter beserta nomor rumah/patokan"}
+                </div>
+              )}
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginTop: "0.5rem" }}>
-              <div>
-                <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800 }}>Kota / Kabupaten</label>
+              <div className="input-group">
+                <label htmlFor="checkout-city" style={{ display: "block", fontSize: "0.7rem", fontWeight: 800 }}>
+                  Kota / Kabupaten *
+                </label>
                 <input
+                  id="checkout-city"
                   type="text"
+                  required
                   value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  style={{ width: "100%", padding: "0.4rem 0.5rem", border: "2px solid #1b1b2f", borderRadius: "0.5rem", fontSize: "0.8125rem", fontWeight: 700 }}
+                  aria-invalid={touched.city ? !isCityValid : undefined}
+                  aria-describedby="city-feedback"
+                  onChange={(e) => {
+                    setCity(e.target.value);
+                    markTouched("city");
+                  }}
+                  onBlur={() => markTouched("city")}
+                  className={`${
+                    touched.city
+                      ? isCityValid
+                        ? "input--valid"
+                        : "input--invalid"
+                      : ""
+                  } ${isShaking && !isCityValid ? "input--shake" : ""}`}
+                  style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.8125rem", fontWeight: 700 }}
                 />
+                {touched.city && (
+                  <div
+                    id="city-feedback"
+                    role="status"
+                    aria-live="polite"
+                    className={isCityValid ? "field-feedback--valid" : "field-feedback--invalid"}
+                  >
+                    {isCityValid ? "✓ Kota Valid" : "✕ Minimal 3 karakter"}
+                  </div>
+                )}
               </div>
-              <div>
-                <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800 }}>Provinsi</label>
+
+              <div className="input-group">
+                <label htmlFor="checkout-province" style={{ display: "block", fontSize: "0.7rem", fontWeight: 800 }}>
+                  Provinsi *
+                </label>
                 <input
+                  id="checkout-province"
                   type="text"
+                  required
                   value={province}
-                  onChange={(e) => setProvince(e.target.value)}
-                  style={{ width: "100%", padding: "0.4rem 0.5rem", border: "2px solid #1b1b2f", borderRadius: "0.5rem", fontSize: "0.8125rem", fontWeight: 700 }}
+                  aria-invalid={touched.province ? !isProvinceValid : undefined}
+                  aria-describedby="province-feedback"
+                  onChange={(e) => {
+                    setProvince(e.target.value);
+                    markTouched("province");
+                  }}
+                  onBlur={() => markTouched("province")}
+                  className={`${
+                    touched.province
+                      ? isProvinceValid
+                        ? "input--valid"
+                        : "input--invalid"
+                      : ""
+                  } ${isShaking && !isProvinceValid ? "input--shake" : ""}`}
+                  style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.8125rem", fontWeight: 700 }}
                 />
+                {touched.province && (
+                  <div
+                    id="province-feedback"
+                    role="status"
+                    aria-live="polite"
+                    className={isProvinceValid ? "field-feedback--valid" : "field-feedback--invalid"}
+                  >
+                    {isProvinceValid ? "✓ Provinsi Valid" : "✕ Minimal 3 karakter"}
+                  </div>
+                )}
               </div>
-              <div>
-                <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800 }}>Kode Pos</label>
+
+              <div className="input-group">
+                <label htmlFor="checkout-postalCode" style={{ display: "block", fontSize: "0.7rem", fontWeight: 800 }}>
+                  Kode Pos *
+                </label>
                 <input
+                  id="checkout-postalCode"
                   type="text"
+                  required
+                  maxLength={5}
                   value={postalCode}
-                  onChange={(e) => setPostalCode(e.target.value)}
-                  style={{ width: "100%", padding: "0.4rem 0.5rem", border: "2px solid #1b1b2f", borderRadius: "0.5rem", fontSize: "0.8125rem", fontWeight: 700 }}
+                  aria-invalid={touched.postalCode ? !isPostalCodeValid : undefined}
+                  aria-describedby="postalCode-feedback"
+                  onChange={(e) => {
+                    setPostalCode(e.target.value);
+                    markTouched("postalCode");
+                  }}
+                  onBlur={() => markTouched("postalCode")}
+                  placeholder="12190"
+                  className={`${
+                    touched.postalCode
+                      ? isPostalCodeValid
+                        ? "input--valid"
+                        : "input--invalid"
+                      : ""
+                  } ${isShaking && !isPostalCodeValid ? "input--shake" : ""}`}
+                  style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.8125rem", fontWeight: 700 }}
                 />
+                {touched.postalCode && (
+                  <div
+                    id="postalCode-feedback"
+                    role="status"
+                    aria-live="polite"
+                    className={isPostalCodeValid ? "field-feedback--valid" : "field-feedback--invalid"}
+                  >
+                    {isPostalCodeValid ? "✓ 5 Digit Valid" : "✕ Kode pos wajib 5 digit angka"}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -501,8 +728,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 style={{
                   flex: 1,
                   padding: "0.5rem 0.75rem",
-                  border: "2px solid #1b1b2f",
-                  borderRadius: "0.5rem",
                   fontWeight: 800,
                   textTransform: "uppercase",
                 }}
@@ -570,28 +795,64 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
           {/* Catatan & Terms */}
           <div>
-            <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, marginBottom: "0.25rem" }}>
+            <label
+              htmlFor="checkout-notes"
+              style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, marginBottom: "0.25rem" }}
+            >
               Catatan untuk Kurir (Opsional)
             </label>
             <input
+              id="checkout-notes"
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Contoh: Titip di pos satpam depan gerbang"
-              style={{ width: "100%", padding: "0.4rem 0.6rem", border: "2px solid #1b1b2f", borderRadius: "0.5rem", fontSize: "0.8125rem" }}
+              style={{ width: "100%", padding: "0.4rem 0.6rem", fontSize: "0.8125rem" }}
             />
           </div>
 
-          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: "0.8125rem", fontWeight: 700 }}>
-            <input
-              type="checkbox"
-              required
-              checked={acceptTerms}
-              onChange={(e) => setAcceptTerms(e.target.checked)}
-              style={{ width: "18px", height: "18px" }}
-            />
-            <span>Saya menyetujui syarat & ketentuan pesanan minuman KALENGO.</span>
-          </label>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                cursor: "pointer",
+                fontSize: "0.8125rem",
+                fontWeight: 700,
+              }}
+            >
+              <input
+                type="checkbox"
+                required
+                checked={acceptTerms}
+                onChange={(e) => {
+                  setAcceptTerms(e.target.checked);
+                  markTouched("acceptTerms");
+                }}
+                style={{ width: "18px", height: "18px", cursor: "pointer" }}
+              />
+              <span>Saya menyetujui syarat & ketentuan pesanan minuman KALENGO.</span>
+            </label>
+
+            {!acceptTerms && touched.acceptTerms && (
+              <div
+                role="alert"
+                className={isShaking ? "input--shake" : ""}
+                style={{
+                  backgroundColor: "#ffe0dc",
+                  border: "2px solid var(--tomato, #ff4b3e)",
+                  borderRadius: "var(--radius-sm, 0.5rem)",
+                  padding: "0.5rem 0.75rem",
+                  color: "#b91c1c",
+                  fontWeight: 800,
+                  fontSize: "0.8125rem",
+                }}
+              >
+                ⚠️ Mohon setujui syarat dan ketentuan pemesanan minuman KALENGO untuk melanjutkan.
+              </div>
+            )}
+          </div>
 
           <footer className="modal-footer" style={{ padding: "0.75rem 0 0 0", borderTop: "none" }}>
             <button
@@ -606,8 +867,31 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               type="submit"
               className="btn btn--primary"
               disabled={isSubmitting}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                fontWeight: 900,
+              }}
             >
-              {isSubmitting ? "Membuat Pesanan..." : `Bayar Sekarang ${formatIdr(totalPayment)} 👉`}
+              {isFormValid && (
+                <span
+                  className="badge badge--mint badge--pulse-green"
+                  style={{
+                    fontSize: "0.75rem",
+                    padding: "0.15rem 0.5rem",
+                    color: "var(--ink, #1b1b2f)",
+                    border: "1.5px solid var(--ink, #1b1b2f)",
+                  }}
+                >
+                  ✓ Data Lengkap
+                </span>
+              )}
+              <span>
+                {isSubmitting
+                  ? "Membuat Pesanan..."
+                  : `Lanjut ke Konfirmasi (${formatIdr(totalPayment)}) 👉`}
+              </span>
             </button>
           </footer>
         </form>
@@ -616,7 +900,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       <ConfirmModal
         isOpen={showOrderConfirm}
         title="Konfirmasi Pesanan"
-        message={`Lanjutkan pemesanan minuman senilai ${formatIdr(totalPayment)} (${items.length} item) dengan pengiriman ${activeShipping.courier.toUpperCase()} ${activeShipping.service}?`}
+        message={`Rincian Pengiriman & Pembayaran:\n• Penerima: ${recipient.trim()} (${phone.trim()})\n• Alamat: ${street.trim()}, ${city.trim()}, ${province.trim()} ${postalCode.trim()}\n• Kurir: ${activeShipping.courier.toUpperCase()} ${activeShipping.service} (${formatIdr(shippingCost)})\n• Diskon: ${discountAmount > 0 ? `-${formatIdr(discountAmount)}` : "Rp0"}\n• Total Tagihan: ${formatIdr(totalPayment)}`}
         confirmText="Ya, Pesan Sekarang"
         cancelText="Cek Kembali"
         variant="primary"

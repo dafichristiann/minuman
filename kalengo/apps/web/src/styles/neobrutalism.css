@@ -956,6 +956,167 @@ textarea:focus {
   transform: translate(-1px, -1px);
 }
 
+/* Neo-brutalist Form Validation & Interactive Feedback */
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  position: relative;
+  width: 100%;
+}
+
+.input--valid {
+  border-color: #3ddc97 !important;
+  background-color: #f2fcf6;
+}
+
+.input--invalid {
+  border-color: #ff4b3e !important;
+  background-color: #fff5f5;
+}
+
+.input--shake {
+  animation: fieldShake 400ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes fieldShake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20%, 60% {
+    transform: translateX(-5px);
+  }
+  40%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+.field-feedback--valid {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #0f6840;
+  background-color: #e6f9f0;
+  border: 1.5px solid #3ddc97;
+  border-radius: var(--radius-pill, 9999px);
+  padding: 0.15rem 0.55rem;
+  width: fit-content;
+  line-height: 1.2;
+}
+
+.field-feedback--invalid {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #b91c1c;
+  background-color: #ffe0dc;
+  border: 1.5px solid #ff4b3e;
+  border-radius: var(--radius-pill, 9999px);
+  padding: 0.15rem 0.55rem;
+  width: fit-content;
+  line-height: 1.2;
+  animation: fieldShake 350ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes badgePulseGreen {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 2px 2px 0 var(--ink, #1b1b2f);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 3px 3px 0 var(--ink, #1b1b2f), 0 0 10px rgba(61, 220, 151, 0.6);
+  }
+}
+
+.badge--pulse-green {
+  animation: badgePulseGreen 1.4s infinite ease-in-out;
+}
+
+/* QRIS Frame & Payment UI */
+.qris-frame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.25rem;
+  border: 3px solid var(--ink, #1b1b2f);
+  border-radius: var(--radius-md, 0.875rem);
+  background-color: #ffffff;
+  box-shadow: 4px 4px 0 var(--ink, #1b1b2f);
+  position: relative;
+  text-align: center;
+}
+
+.qris-badge-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: var(--lemon, #ffd23f);
+  border: 2px solid var(--ink, #1b1b2f);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-weight: 900;
+  font-size: 0.65rem;
+  box-shadow: 1px 1px 0 var(--ink, #1b1b2f);
+  pointer-events: none;
+}
+
+.btn-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 2px solid var(--ink, #1b1b2f);
+  background-color: var(--lemon, #ffd23f);
+  color: var(--ink, #1b1b2f);
+  font-weight: 800;
+  font-size: 0.8125rem;
+  border-radius: var(--radius-sm, 0.5rem);
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
+  box-shadow: 2.5px 2.5px 0 var(--ink, #1b1b2f);
+  transition: transform 100ms ease, box-shadow 100ms ease, background-color 150ms ease;
+  user-select: none;
+}
+
+.btn-copy:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3.5px 3.5px 0 var(--ink, #1b1b2f);
+  background-color: #ffe066;
+}
+
+.btn-copy:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 var(--ink, #1b1b2f);
+}
+
+.btn-copy--copied {
+  background-color: var(--mint, #3ddc97) !important;
+  color: var(--ink, #1b1b2f) !important;
+}
+
+/* Payment Processing Bar */
+.payment-progress-bar {
+  width: 100%;
+  height: 16px;
+  background-color: #f0f0f5;
+  border: 2.5px solid var(--ink, #1b1b2f);
+  border-radius: var(--radius-pill, 9999px);
+  overflow: hidden;
+  box-shadow: 2px 2px 0 var(--ink, #1b1b2f);
+}
+
+.payment-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--mint, #3ddc97), var(--sky, #2ec4f1));
+  border-radius: var(--radius-pill, 9999px);
+  transition: width 200ms linear;
+}
+
 /* Can Bounce & Squish Animation */
 @keyframes canSquishBounce {
   0% {
@@ -1283,7 +1444,10 @@ textarea:focus {
   .cart-btn--wiggle,
   .confetti-particle,
   .mascot-anim--cheer,
-  .bouncy-checkmark-circle {
+  .bouncy-checkmark-circle,
+  .field-feedback--invalid,
+  .input--shake,
+  .badge--pulse-green {
     animation: none !important;
     transition: none !important;
     transform: none !important;
