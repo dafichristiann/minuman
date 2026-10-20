@@ -232,13 +232,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       onClose();
       onOrderCreated(order);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        // Belum masuk -> arahkan untuk masuk atau buat pesanan lokal tamu
-        onRequireAuth();
-        return;
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          // Belum masuk -> arahkan untuk masuk
+          onRequireAuth();
+          return;
+        }
+
+        // Tampilkan pesan validasi / bisnis dari API (mis. stok berubah, voucher min spend)
+        if (err.status === 409 || err.status === 422 || err.status === 400) {
+          setErrorMessage(err.message);
+          toast.error(err.message, "Pemesanan Gagal");
+          return;
+        }
       }
 
-      // Fallback pesanan lokal untuk kelancaran presentasi tamu / demo
+      // Fallback pesanan lokal untuk kelancaran presentasi tamu / demo offline
       const fakeOrder: Order = {
         id: `ord-${Date.now()}`,
         order_no: `KLG-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(1000 + Math.random() * 9000)}`,

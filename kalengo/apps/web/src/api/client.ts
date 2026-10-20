@@ -93,11 +93,14 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   if (body !== undefined) headers.set("Content-Type", "application/json");
   if (idempotencyKey !== undefined) headers.set("Idempotency-Key", idempotencyKey);
 
-  // Ambil token CSRF dari cookie kalengo_csrf (pola double-submit cookie §13.1)
+  // Ambil token CSRF dari cookie kalengo_csrf atau sessionStorage (double-submit cookie §13.1)
   if (typeof document !== "undefined") {
     const csrfMatch = document.cookie.match(/(?:^|;\s*)kalengo_csrf=([^;]+)/);
-    if (csrfMatch?.[1]) {
-      headers.set("X-CSRF-Token", decodeURIComponent(csrfMatch[1]));
+    const cookieToken = csrfMatch?.[1] ? decodeURIComponent(csrfMatch[1]) : null;
+    const sessionToken = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("kalengo_csrf") : null;
+    const activeToken = cookieToken || sessionToken;
+    if (activeToken) {
+      headers.set("X-CSRF-Token", activeToken);
     }
   }
 

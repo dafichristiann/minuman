@@ -40,6 +40,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (payload: LoginPayload) => {
     const session = await loginUser(payload);
+    if (session.csrf_token && typeof sessionStorage !== "undefined") {
+      sessionStorage.setItem("kalengo_csrf", session.csrf_token);
+    }
     setUser(session.user);
     return session.user;
   }, []);
@@ -49,6 +52,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Setelah registrasi, coba login atau set user
     try {
       const session = await loginUser({ email: payload.email, password: payload.password });
+      if (session.csrf_token && typeof sessionStorage !== "undefined") {
+        sessionStorage.setItem("kalengo_csrf", session.csrf_token);
+      }
       setUser(session.user);
       return session.user;
     } catch {

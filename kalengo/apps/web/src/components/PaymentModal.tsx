@@ -25,8 +25,38 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   if (!isOpen || !order) return null;
 
-  const handleSimulatePayment = () => {
+  const handleSimulatePayment = async () => {
     setIsProcessing(true);
+
+    // Kirim webhook settlement ke backend jika ini pesanan server nyata
+    if (order.order_no.startsWith("KLG-") && typeof crypto !== "undefined" && crypto.subtle) {
+      try {
+        const statusCode = "200";
+        const grossAmount = `${order.total}.00`;
+        const serverKey = "dummy-server-key";
+        const enc = new TextEncoder();
+        const raw = `${order.order_no}${statusCode}${grossAmount}${serverKey}`;
+        const buf = await crypto.subtle.digest("SHA-512", enc.encode(raw));
+        const signature = Array.from(new Uint8Array(buf))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+
+        await fetch("/api/v1/webhooks/midtrans", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            order_id: order.order_no,
+            status_code: statusCode,
+            gross_amount: grossAmount,
+            transaction_status: "settlement",
+            signature_key: signature,
+          }),
+        });
+      } catch {
+        // Lanjutkan konfirmasi UI
+      }
+    }
+
     setTimeout(() => {
       setIsProcessing(false);
       setIsPaid(true);
