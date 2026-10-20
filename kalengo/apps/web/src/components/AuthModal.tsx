@@ -72,7 +72,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           phone: phone || null,
           accept_terms: true,
         });
-        toast.success("Selamat datang di KALENGO! Akun Anda berhasil dibuat.", "Registrasi Sukses");
+        // Login otomatis setelah registrasi sukses agar pengguna langsung masuk
+        await login({ email, password });
+        toast.success("Selamat datang di KALENGO! Akun Anda berhasil dibuat dan langsung aktif.", "Registrasi Sukses");
       }
       onSuccess?.();
       onClose();
