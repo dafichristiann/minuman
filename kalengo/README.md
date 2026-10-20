@@ -12,9 +12,9 @@ Toko daring minuman kaleng — React + Vite + TypeScript, Go, PostgreSQL 16, Red
 
 | Milestone | Cakupan | Status |
 |---|---|---|
-| **M0** | Fondasi: monorepo, CI, docker-compose, konfigurasi, logger, skema DB v1, migrasi, kontrak OpenAPI, bangkai rute | **selesai (kode)** — belum pernah dikompilasi di mesin ini, lihat [`docs/M0-SETUP.md`](docs/M0-SETUP.md) |
-| M1 | Autentikasi, akun, katalog, keranjang, wishlist, pengingat stok | belum |
-| M2 | Checkout, ongkir, voucher, pesanan, pembayaran, webhook | belum |
+| **M0** | Fondasi: monorepo, CI, docker-compose, konfigurasi, logger, skema DB v1, migrasi, kontrak OpenAPI, bangkai rute | **selesai (kode)** — baseline Go sudah diverifikasi; audit infra masih terbuka, lihat [`docs/M0-SETUP.md`](docs/M0-SETUP.md) |
+| M1 | Autentikasi, akun, katalog, keranjang, wishlist, pengingat stok | **implementasi selesai** — integrasi PostgreSQL nyata lulus (10 uji integrasi); lihat [`docs/M1-NOTES.md`](docs/M1-NOTES.md) |
+| M2 | Checkout, ongkir, voucher, pesanan, pembayaran, webhook | **implementasi selesai** — integrasi DB lulus (anti-oversell, idempotensi, webhook tanda tangan); provider tiruan, adapter jaringan riil di M5 |
 | M3 | Notifikasi real-time (SSE), preferensi, push, UI settings | belum |
 | M4 | Admin & audit | belum |
 | M5 | Pengerasan keamanan, performa, aksesibilitas | belum |

@@ -1,6 +1,7 @@
 /// <reference types="vitest" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import fs from "node:fs";
 
 // ============================================================
 // KALENGO Web — konfigurasi Vite (§10.1)
@@ -10,14 +11,24 @@ import react from "@vitejs/plugin-react";
 //   - animasi <= 150 KB di beranda → animasi masuk chunk terpisah
 //   - CSS/JS diberi hash agar bisa di-cache immutable (§15)
 // ============================================================
+const realRoot = fs.existsSync(process.cwd()) ? fs.realpathSync(process.cwd()) : process.cwd();
+
 export default defineConfig({
+  root: realRoot,
   plugins: [react()],
   server: {
     port: 5173,
+    fs: {
+      strict: false,
+    },
     // Proxy ke API agar cookie autentikasi same-origin pada pengembangan.
     proxy: {
       "/api": {
-        target: process.env.VITE_PROXY_TARGET ?? "http://localhost:8080",
+        target: process.env.VITE_PROXY_TARGET ?? "http://localhost:8081",
+        changeOrigin: true,
+      },
+      "/readyz": {
+        target: process.env.VITE_PROXY_TARGET ?? "http://localhost:8081",
         changeOrigin: true,
       },
     },

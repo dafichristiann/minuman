@@ -64,12 +64,13 @@ function isErrorEnvelope(value: unknown): value is ApiErrorEnvelope {
 }
 
 export interface RequestOptions {
-  readonly method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+  readonly method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE" | undefined;
   readonly body?: unknown;
-  readonly signal?: AbortSignal;
-  readonly timeoutMs?: number;
+  readonly signal?: AbortSignal | undefined;
+  readonly timeoutMs?: number | undefined;
   /** Idempotency-Key wajib untuk POST /orders (§12). */
-  readonly idempotencyKey?: string;
+  readonly idempotencyKey?: string | undefined;
+  readonly headers?: Record<string, string> | undefined;
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -79,6 +80,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     signal,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     idempotencyKey,
+    headers: extraHeaders,
   } = options;
 
   const controller = new AbortController();
@@ -90,6 +92,20 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const headers = new Headers({ Accept: "application/json" });
   if (body !== undefined) headers.set("Content-Type", "application/json");
   if (idempotencyKey !== undefined) headers.set("Idempotency-Key", idempotencyKey);
+
+  // Ambil token CSRF dari cookie kalengo_csrf (pola double-submit cookie §13.1)
+  if (typeof document !== "undefined") {
+    const csrfMatch = document.cookie.match(/(?:^|;\s*)kalengo_csrf=([^;]+)/);
+    if (csrfMatch?.[1]) {
+      headers.set("X-CSRF-Token", decodeURIComponent(csrfMatch[1]));
+    }
+  }
+
+  if (extraHeaders) {
+    for (const [k, v] of Object.entries(extraHeaders)) {
+      headers.set(k, v);
+    }
+  }
 
   // Dipakai untuk membedakan "habis waktu" dari "dibatalkan pemanggil".
   let timedOut = false;

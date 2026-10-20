@@ -857,3 +857,27 @@ func TestChangePasswordRejectsWrongCurrent(t *testing.T) {
 	})
 	wantCode(t, err, apperr.CodeAuthPasswordWeak)
 }
+
+// Password bersifat case-sensitive: variasi huruf besar/kecil adalah password
+// BERBEDA dan tidak boleh ditolak sebagai "sama dengan yang lama".
+func TestChangePasswordAllowsCaseVariant(t *testing.T) {
+	svc, _, _, _ := newTestService(t)
+	registerFixture(t, svc, "budi@contoh.com")
+
+	session, err := svc.Login(context.Background(), LoginInput{Email: "budi@contoh.com", Password: "kaleng-enak-2026"})
+	if err != nil {
+		t.Fatalf("Login() error = %v", err)
+	}
+
+	if _, err := svc.ChangePassword(context.Background(), ChangePasswordInput{
+		UserID:  session.User.ID,
+		Current: "kaleng-enak-2026",
+		New:     "Kaleng-Enak-2026",
+	}); err != nil {
+		t.Fatalf("ChangePassword(variasi kapital) error = %v, ingin lulus", err)
+	}
+
+	if _, err := svc.Login(context.Background(), LoginInput{Email: "budi@contoh.com", Password: "Kaleng-Enak-2026"}); err != nil {
+		t.Fatalf("Login(password baru) error = %v", err)
+	}
+}

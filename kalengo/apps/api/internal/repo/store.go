@@ -33,6 +33,10 @@ type DBTX interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
+type txBeginner interface {
+	Begin(context.Context) (pgx.Tx, error)
+}
+
 // Store membungkus DBTX. Nilainya murah; buat instance baru per transaksi.
 type Store struct {
 	db DBTX
@@ -43,6 +47,28 @@ func New(db DBTX) *Store { return &Store{db: db} }
 
 // DB mengembalikan koneksi dasar (dipakai untuk transaksi oleh service).
 func (s *Store) DB() DBTX { return s.db }
+
+// InTx runs repository operations on one transaction. Production callers use
+// a pgxpool.Pool; test doubles can continue using the existing interfaces.
+func (s *Store) InTx(ctx context.Context, fn func(*Store) error) (err error) {
+	b, ok := s.db.(txBeginner)
+	if !ok {
+		return errors.New("repo: database tidak mendukung transaksi")
+	}
+	tx, err := b.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback(context.WithoutCancel(ctx))
+			return
+		}
+		err = tx.Commit(ctx)
+	}()
+	err = fn(New(tx))
+	return err
+}
 
 // mapErr menerjemahkan "tidak ada baris" ke sentinel domain.
 func mapErr(err error) error {

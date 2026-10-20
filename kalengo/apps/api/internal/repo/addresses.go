@@ -82,6 +82,16 @@ type AddressInput struct {
 
 // CreateAddress menyisipkan alamat. Alamat pertama otomatis menjadi default.
 func (s *Store) CreateAddress(ctx context.Context, userID uuid.UUID, in AddressInput) (domain.Address, error) {
+	var out domain.Address
+	err := s.InTx(ctx, func(tx *Store) error {
+		var err error
+		out, err = tx.createAddress(ctx, userID, in)
+		return err
+	})
+	return out, err
+}
+
+func (s *Store) createAddress(ctx context.Context, userID uuid.UUID, in AddressInput) (domain.Address, error) {
 	var makeDefault bool
 	if err := s.db.QueryRow(ctx, `
 		SELECT count(*) = 0 FROM addresses
@@ -109,6 +119,19 @@ func (s *Store) CreateAddress(ctx context.Context, userID uuid.UUID, in AddressI
 // UpdateAddress menimpa seluruh kolom alamat. Kepemilikan diverifikasi di WHERE.
 func (s *Store) UpdateAddress(ctx context.Context, userID, id uuid.UUID, in AddressInput) (domain.Address, error) {
 	if in.IsDefault {
+		var out domain.Address
+		err := s.InTx(ctx, func(tx *Store) error {
+			var err error
+			out, err = tx.updateAddress(ctx, userID, id, in)
+			return err
+		})
+		return out, err
+	}
+	return s.updateAddress(ctx, userID, id, in)
+}
+
+func (s *Store) updateAddress(ctx context.Context, userID, id uuid.UUID, in AddressInput) (domain.Address, error) {
+	if in.IsDefault {
 		if err := s.clearDefault(ctx, userID); err != nil {
 			return domain.Address{}, err
 		}
@@ -127,6 +150,16 @@ func (s *Store) UpdateAddress(ctx context.Context, userID, id uuid.UUID, in Addr
 
 // SetDefaultAddress menjadikan satu alamat sebagai default milik pengguna.
 func (s *Store) SetDefaultAddress(ctx context.Context, userID, id uuid.UUID) (domain.Address, error) {
+	var out domain.Address
+	err := s.InTx(ctx, func(tx *Store) error {
+		var err error
+		out, err = tx.setDefaultAddress(ctx, userID, id)
+		return err
+	})
+	return out, err
+}
+
+func (s *Store) setDefaultAddress(ctx context.Context, userID, id uuid.UUID) (domain.Address, error) {
 	// Pastikan alamat memang milik pengguna sebelum mengubah apa pun.
 	if _, err := s.GetAddress(ctx, userID, id); err != nil {
 		return domain.Address{}, err
@@ -145,6 +178,10 @@ func (s *Store) SetDefaultAddress(ctx context.Context, userID, id uuid.UUID) (do
 // alamat terlama berikutnya dinaikkan menjadi default agar checkout tetap bisa
 // berjalan tanpa langkah tambahan dari pengguna.
 func (s *Store) DeleteAddress(ctx context.Context, userID, id uuid.UUID) error {
+	return s.InTx(ctx, func(tx *Store) error { return tx.deleteAddress(ctx, userID, id) })
+}
+
+func (s *Store) deleteAddress(ctx context.Context, userID, id uuid.UUID) error {
 	tag, err := s.db.Exec(ctx, `
 		UPDATE addresses
 		SET deleted_at = now(), is_default = false

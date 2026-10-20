@@ -202,9 +202,10 @@ web-build: ## Build produksi frontend
 web-budget: web-build ## Periksa anggaran ukuran bundel (§1.4)
 	cd $(WEB_DIR) && node scripts/check-budget.mjs
 
-web-audit: ## npm audit + uji a11y (§13.3)
+web-audit: ## npm audit + uji a11y + validasi kontrak OpenAPI (§13.3)
 	cd $(WEB_DIR) && $(NPM) audit --omit=dev --audit-level=high
 	cd $(WEB_DIR) && $(NPM) run test:a11y
+	cd $(WEB_DIR) && $(NPM) run openapi:check
 
 # ---------------------------------------------------------------
 ci: fmt-check lint test-race security sqlc-vet web-lint web-test web-budget web-audit ## Rangkaian yang dijalankan CI

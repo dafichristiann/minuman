@@ -24,12 +24,15 @@ import (
 	"github.com/kalengo/api/internal/http/middleware"
 	"github.com/kalengo/api/internal/platform/db"
 	"github.com/kalengo/api/internal/platform/httpx"
+	"github.com/kalengo/api/internal/platform/payment"
 	"github.com/kalengo/api/internal/platform/ratelimit"
 	"github.com/kalengo/api/internal/platform/redisclient"
+	"github.com/kalengo/api/internal/platform/shipping"
 	"github.com/kalengo/api/internal/repo"
 	"github.com/kalengo/api/internal/service/account"
 	"github.com/kalengo/api/internal/service/auth"
 	"github.com/kalengo/api/internal/service/catalog"
+	ordersvc "github.com/kalengo/api/internal/service/order"
 	"github.com/kalengo/api/internal/service/shop"
 )
 
@@ -64,6 +67,22 @@ func NewRouter(d Deps) *chi.Mux {
 	catalogSvc := catalog.New(store)
 	shopSvc := shop.New(store)
 
+	// ---------- penyedia M2 ----------
+	//
+	// M2 memakai penyedia PALSU yang berjalan di dalam proses: tidak ada
+	// panggilan jaringan ke Midtrans/Biteship. Adapter sungguhan ditambahkan pada
+	// M5 dengan antarmuka yang sama (lihat internal/platform/{payment,shipping}).
+	payProvider := payment.Provider(&payment.Fake{ServerKey: cfg.Payment.MidtransServerKey})
+	shipProvider := shipping.Provider(&shipping.Fake{})
+
+	orderSvc := ordersvc.New(ordersvc.Deps{
+		Config:   cfg,
+		Store:    store,
+		Payments: payProvider,
+		Shipping: shipProvider,
+		Log:      d.Log,
+	})
+
 	// ---------- handler ----------
 	sys := handler.NewSystem(cfg, d.DB, d.Redis)
 	authH := handler.NewAuth(cfg, authSvc)
@@ -71,6 +90,9 @@ func NewRouter(d Deps) *chi.Mux {
 	addrH := handler.NewAddress(cfg, accountSvc)
 	catH := handler.NewCatalog(cfg, catalogSvc)
 	cartH := handler.NewCart(cfg, shopSvc)
+	orderH := handler.NewOrder(cfg, orderSvc)
+	checkoutH := handler.NewCheckout(cfg, orderSvc)
+	webhookH := handler.NewWebhook(orderSvc)
 
 	// ---------- middleware bergantung sesi ----------
 	requireAuth := middleware.RequireAuth(cfg, authSvc.Tokens(), store)
@@ -204,7 +226,26 @@ func NewRouter(d Deps) *chi.Mux {
 
 			r.Post("/stock-alerts/{variantId}", cartH.SubscribeStock)
 			r.Delete("/stock-alerts/{variantId}", cartH.UnsubscribeStock)
+
+			// --- checkout & pesanan (§12.4) ---
+			r.Post("/shipping/rates", checkoutH.ShippingRates)
+			r.Post("/vouchers/validate", checkoutH.ValidateVoucher)
+
+			r.Post("/orders", orderH.Create)
+			r.Get("/orders", orderH.List)
+			r.Get("/orders/{id}", orderH.Detail)
+			r.Post("/orders/{id}/cancel", orderH.Cancel)
+			r.Post("/orders/{id}/pay", orderH.Pay)
 		})
+
+		// --- webhook penyedia (§12.5) ---
+		//
+		// SENGAJA di luar grup terautentikasi: pemanggilnya penyedia pembayaran,
+		// bukan pengguna. Tanpa RequireAuth dan tanpa CSRF — keamanannya
+		// bertumpu pada verifikasi tanda tangan di lapisan service.
+		r.Post("/webhooks/midtrans", webhookH.Midtrans)
+		r.Post("/webhooks/shipping", webhookH.Shipping)
+		// ---------------------------------------------------------------
 
 		// ---------------------------------------------------------------
 		// Rute milestone berikutnya:

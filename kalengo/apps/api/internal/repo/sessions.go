@@ -133,6 +133,47 @@ type CreateOneTimeTokenParams struct {
 // CreateOneTimeToken menyimpan token verifikasi/reset. Token lama dengan
 // tujuan yang sama dicabut lebih dulu agar hanya tautan terbaru yang berlaku.
 func (s *Store) CreateOneTimeToken(ctx context.Context, p CreateOneTimeTokenParams) error {
+	return s.InTx(ctx, func(tx *Store) error { return tx.createOneTimeToken(ctx, p) })
+}
+
+// ResetPassword atomically consumes the reset token, changes the password,
+// and revokes every existing session.
+func (s *Store) ResetPassword(ctx context.Context, tokenHash []byte, passwordHash string) error {
+	return s.InTx(ctx, func(tx *Store) error {
+		var userID uuid.UUID
+		if err := tx.db.QueryRow(ctx, `
+			UPDATE one_time_tokens
+			SET used_at = now()
+			WHERE token_hash = $1 AND purpose = $2 AND used_at IS NULL AND expires_at > now()
+			RETURNING user_id`, tokenHash, PurposeResetPassword).Scan(&userID); err != nil {
+			return mapErr(err)
+		}
+		if err := tx.UpdateUserPassword(ctx, userID, passwordHash); err != nil {
+			return err
+		}
+		return tx.RevokeAllForUser(ctx, userID)
+	})
+}
+
+// VerifyEmail atomically consumes the verification token and marks the email
+// verified. Consuming the token without marking the user verified would burn a
+// one-time link while leaving the account unverified.
+func (s *Store) VerifyEmail(ctx context.Context, tokenHash []byte) error {
+	return s.InTx(ctx, func(tx *Store) error {
+		var userID uuid.UUID
+		if err := tx.db.QueryRow(ctx, `
+			UPDATE one_time_tokens
+			SET used_at = now()
+			WHERE token_hash = $1 AND purpose = $2 AND used_at IS NULL AND expires_at > now()
+			RETURNING user_id`, tokenHash, PurposeVerifyEmail).Scan(&userID); err != nil {
+			return mapErr(err)
+		}
+		_, err := tx.MarkEmailVerified(ctx, userID)
+		return err
+	})
+}
+
+func (s *Store) createOneTimeToken(ctx context.Context, p CreateOneTimeTokenParams) error {
 	if _, err := s.db.Exec(ctx, `
 		UPDATE one_time_tokens
 		SET used_at = now()

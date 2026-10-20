@@ -1,0 +1,1291 @@
+/* ============================================================
+ * KALENGO — Neo-Brutalism & 1930s Rubber-Hose Component System
+ *
+ * Core Tokens:
+ * - Cream background #fff4dc
+ * - Ink border & hard shadow #1b1b2f (3px solid, 3px 3px 0 / 4px 4px 0)
+ * - Playful bold accents: Lemon #ffd23f, Tomato #ff4b3e, Mint #3ddc97, Sky #2ec4f1, Berry #d6336c
+ * - WCAG AA compliant contrast & tactile physical feedback
+ * ============================================================ */
+
+/* ------------------------------------------------------------
+ * 1. Base Buttons (Neo-brutalist tactile press)
+ * ------------------------------------------------------------ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2, 0.5rem);
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-weight: 800;
+  font-size: var(--text-md, 1rem);
+  line-height: 1;
+  padding: 0.75rem 1.25rem;
+  min-height: 44px; /* WCAG touch target */
+  min-width: 44px;
+  color: var(--ink, #1b1b2f);
+  background-color: #ffffff;
+  border: 3px solid var(--ink, #1b1b2f);
+  border-radius: var(--radius-md, 0.875rem);
+  box-shadow: 4px 4px 0 var(--ink, #1b1b2f);
+  cursor: pointer;
+  user-select: none;
+  text-decoration: none;
+  transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 120ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              background-color 150ms ease;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--ink, #1b1b2f);
+}
+
+.btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--ink, #1b1b2f);
+}
+
+.btn:focus-visible {
+  outline: 3px dashed var(--tomato, #ff4b3e);
+  outline-offset: 3px;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: 2px 2px 0 var(--ink, #1b1b2f);
+  transform: none;
+}
+
+/* Button Variants */
+.btn--primary {
+  background-color: var(--tomato, #ff4b3e);
+  color: #ffffff;
+}
+.btn--primary:hover:not(:disabled) {
+  background-color: #fa382a;
+}
+
+.btn--lemon {
+  background-color: var(--lemon, #ffd23f);
+  color: var(--ink, #1b1b2f);
+}
+.btn--lemon:hover:not(:disabled) {
+  background-color: #f7c525;
+}
+
+.btn--mint {
+  background-color: var(--mint, #3ddc97);
+  color: var(--ink, #1b1b2f);
+}
+.btn--mint:hover:not(:disabled) {
+  background-color: #2ec484;
+}
+
+.btn--sky {
+  background-color: var(--sky, #2ec4f1);
+  color: var(--ink, #1b1b2f);
+}
+.btn--sky:hover:not(:disabled) {
+  background-color: #17b3e2;
+}
+
+.btn--berry {
+  background-color: var(--berry, #d6336c);
+  color: #ffffff;
+}
+.btn--berry:hover:not(:disabled) {
+  background-color: #bf2056;
+}
+
+.btn--secondary {
+  background-color: var(--cream, #fff4dc);
+  color: var(--ink, #1b1b2f);
+}
+
+.btn--pill {
+  border-radius: 999px;
+  padding: 0.625rem 1.5rem;
+}
+
+.btn--icon {
+  padding: 0.625rem;
+  border-radius: 50%;
+  aspect-ratio: 1 / 1;
+}
+
+.btn--sm {
+  font-size: var(--text-sm, 0.875rem);
+  padding: 0.5rem 0.875rem;
+  min-height: 38px;
+  box-shadow: 3px 3px 0 var(--ink, #1b1b2f);
+}
+.btn--sm:hover:not(:disabled) {
+  box-shadow: 4px 4px 0 var(--ink, #1b1b2f);
+  transform: translate(-1px, -1px);
+}
+.btn--sm:active:not(:disabled) {
+  box-shadow: 1px 1px 0 var(--ink, #1b1b2f);
+  transform: translate(2px, 2px);
+}
+
+/* ------------------------------------------------------------
+ * 2. Badges & Labels
+ * ------------------------------------------------------------ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-weight: 800;
+  font-size: var(--text-xs, 0.75rem);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.25rem 0.625rem;
+  border: 2px solid var(--ink, #1b1b2f);
+  border-radius: 999px;
+  box-shadow: 2px 2px 0 var(--ink, #1b1b2f);
+  background-color: #ffffff;
+  color: var(--ink, #1b1b2f);
+}
+
+.badge--hot {
+  background-color: var(--tomato, #ff4b3e);
+  color: #ffffff;
+}
+
+.badge--lemon {
+  background-color: var(--lemon, #ffd23f);
+  color: var(--ink, #1b1b2f);
+}
+
+.badge--mint {
+  background-color: var(--mint, #3ddc97);
+  color: var(--ink, #1b1b2f);
+}
+
+.badge--sky {
+  background-color: var(--sky, #2ec4f1);
+  color: var(--ink, #1b1b2f);
+}
+
+.badge--berry {
+  background-color: var(--berry, #d6336c);
+  color: #ffffff;
+}
+
+/* ------------------------------------------------------------
+ * 3. Pill Filter Group
+ * ------------------------------------------------------------ */
+.filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.filter-pill {
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-weight: 700;
+  font-size: var(--text-sm, 0.875rem);
+  padding: 0.5rem 1rem;
+  border: 2.5px solid var(--ink, #1b1b2f);
+  border-radius: 999px;
+  background-color: #ffffff;
+  color: var(--ink, #1b1b2f);
+  box-shadow: 3px 3px 0 var(--ink, #1b1b2f);
+  cursor: pointer;
+  transition: all 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  user-select: none;
+}
+
+.filter-pill:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--ink, #1b1b2f);
+  background-color: var(--cream, #fff4dc);
+}
+
+.filter-pill[aria-pressed="true"],
+.filter-pill.is-active {
+  background-color: var(--lemon, #ffd23f);
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--ink, #1b1b2f);
+  border-color: var(--ink, #1b1b2f);
+}
+
+.filter-pill:focus-visible {
+  outline: 3px dashed var(--tomato, #ff4b3e);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------
+ * 4. Product Cards
+ * ------------------------------------------------------------ */
+.card-product {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
+  border: 3px solid var(--ink, #1b1b2f);
+  border-radius: var(--radius-lg, 1.25rem);
+  box-shadow: 4px 4px 0 var(--ink, #1b1b2f);
+  overflow: hidden;
+  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.card-product:hover {
+  transform: translateY(-4px);
+  box-shadow: 6px 8px 0 var(--ink, #1b1b2f);
+}
+
+/* Mascot Stage inside Card */
+.card-product__stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 1rem 1rem;
+  background-color: var(--cream, #fff4dc);
+  border-bottom: 3px solid var(--ink, #1b1b2f);
+  min-height: 190px;
+}
+
+.card-product__badge-wrapper {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 2;
+}
+
+.card-product__mascot {
+  transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.card-product:hover .card-product__mascot {
+  transform: scale(1.06) rotate(-2deg);
+}
+
+/* Product Info */
+.card-product__body {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.25rem 1.25rem;
+  flex: 1;
+}
+
+.card-product__title {
+  font-family: var(--font-display, "Bagel Fat One", system-ui, sans-serif);
+  font-size: var(--text-lg, 1.25rem);
+  line-height: 1.2;
+  color: var(--ink, #1b1b2f);
+  margin: 0 0 0.35rem;
+}
+
+.card-product__desc {
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-size: var(--text-sm, 0.875rem);
+  color: #4a4a63;
+  margin: 0 0 1rem;
+  flex: 1;
+}
+
+.card-product__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 2px dashed #dedede;
+}
+
+.card-product__price {
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-weight: 800;
+  font-size: var(--text-lg, 1.25rem);
+  color: var(--ink, #1b1b2f);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------
+ * 5. Modals & Drawers
+ * ------------------------------------------------------------ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(27, 27, 47, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: var(--z-modal, 300);
+  backdrop-filter: blur(2px);
+}
+
+.modal-window {
+  position: relative;
+  background-color: var(--cream, #fff4dc);
+  border: 3px solid var(--ink, #1b1b2f);
+  border-radius: var(--radius-lg, 1.25rem);
+  box-shadow: 6px 6px 0 var(--ink, #1b1b2f);
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  animation: modalSpringIn 320ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.modal-window--confirm {
+  animation: squashStretchIn 350ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 3px solid var(--ink, #1b1b2f);
+  background-color: var(--lemon, #ffd23f);
+}
+
+.modal-title {
+  font-family: var(--font-display, "Bagel Fat One", system-ui, sans-serif);
+  font-size: var(--text-xl, 1.5625rem);
+  color: var(--ink, #1b1b2f);
+  margin: 0;
+}
+
+.modal-body {
+  padding: 1.5rem;
+  background-color: #ffffff;
+}
+
+.modal-footer {
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  border-top: 3px solid var(--ink, #1b1b2f);
+  background-color: var(--cream, #fff4dc);
+}
+
+/* Drawer / Side Cart Container */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(27, 27, 47, 0.6);
+  z-index: var(--z-drawer, 200);
+}
+
+.drawer-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  max-width: 420px;
+  background-color: var(--cream, #fff4dc);
+  border-left: 3px solid var(--ink, #1b1b2f);
+  box-shadow: -6px 0 0 var(--ink, #1b1b2f);
+  z-index: calc(var(--z-drawer, 200) + 1);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.drawer-header {
+  padding: 1.25rem 1.5rem;
+  background-color: var(--sky, #2ec4f1);
+  border-bottom: 3px solid var(--ink, #1b1b2f);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ------------------------------------------------------------
+ * 6. Sticky Floating Cart Trigger
+ * ------------------------------------------------------------ */
+.floating-cart-trigger {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: var(--z-sticky, 100);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  background-color: var(--tomato, #ff4b3e);
+  color: #ffffff;
+  border: 3px solid var(--ink, #1b1b2f);
+  border-radius: 999px;
+  box-shadow: 4px 4px 0 var(--ink, #1b1b2f);
+  cursor: pointer;
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-weight: 800;
+  font-size: var(--text-md, 1rem);
+  user-select: none;
+  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.floating-cart-trigger:hover {
+  transform: translate(-2px, -3px) scale(1.03);
+  box-shadow: 6px 7px 0 var(--ink, #1b1b2f);
+}
+
+.floating-cart-trigger:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--ink, #1b1b2f);
+}
+
+.floating-cart-trigger:focus-visible {
+  outline: 3px dashed var(--ink, #1b1b2f);
+  outline-offset: 4px;
+}
+
+.floating-cart-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 0.35rem;
+  background-color: var(--lemon, #ffd23f);
+  color: var(--ink, #1b1b2f);
+  border: 2px solid var(--ink, #1b1b2f);
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 0.8125rem;
+}
+
+/* Cart icon bounce */
+@keyframes cartBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px) scale(1.05); }
+}
+
+.floating-cart-trigger:hover .floating-cart-count {
+  animation: cartBounce 350ms ease infinite;
+}
+
+/* ------------------------------------------------------------
+ * 7. Accessibility & Reduced Motion
+ * ------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .card-product,
+  .card-product__mascot,
+  .filter-pill,
+  .floating-cart-trigger,
+  .floating-cart-count {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+/* ------------------------------------------------------------
+ * 8. Header & Navigation (Neo-Brutalist Sticky Topbar)
+ * ------------------------------------------------------------ */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky, 100);
+  background-color: var(--cream, #fff4dc);
+  border-bottom: 3px solid var(--ink, #1b1b2f);
+}
+
+.site-header__topbar {
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid var(--ink, #1b1b2f);
+  background-color: #ffffff;
+}
+
+.site-header__container {
+  max-width: var(--container-max, 1200px);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.site-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: var(--ink, #1b1b2f);
+}
+
+.site-logo__can {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.site-logo__text {
+  font-family: var(--font-display, "Bagel Fat One", system-ui, sans-serif);
+  font-size: 1.75rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.site-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.site-header__cart-btn {
+  position: relative;
+  gap: 0.5rem;
+}
+
+.site-header__cart-badge {
+  background-color: var(--lemon, #ffd23f);
+  color: var(--ink, #1b1b2f);
+  border: 2px solid var(--ink, #1b1b2f);
+  border-radius: 999px;
+  min-width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 900;
+  padding: 0 0.35rem;
+}
+
+.site-header__nav {
+  padding: 0.5rem 1rem;
+  background-color: var(--cream, #fff4dc);
+}
+
+.site-header__nav-scroll {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-bottom: 0.25rem;
+  scrollbar-width: thin;
+}
+
+.header-nav-link {
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-weight: 800;
+  font-size: var(--text-sm, 0.875rem);
+  padding: 0.35rem 0.875rem;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink, #1b1b2f);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.header-nav-link:hover {
+  background-color: #ffffff;
+  border-color: var(--ink, #1b1b2f);
+}
+
+.header-nav-link.is-active {
+  background-color: var(--lemon, #ffd23f);
+  border-color: var(--ink, #1b1b2f);
+  box-shadow: 2px 2px 0 var(--ink, #1b1b2f);
+}
+
+/* ------------------------------------------------------------
+ * 9. Hero Banner (1930s Rubber-Hose Stage)
+ * ------------------------------------------------------------ */
+.hero-banner {
+  background-color: var(--cream, #fff4dc);
+  border-bottom: 3px solid var(--ink, #1b1b2f);
+  padding: 3rem 1rem 3.5rem;
+  overflow: hidden;
+}
+
+.hero-banner__container {
+  max-width: var(--container-max, 1200px);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  align-items: center;
+  gap: 2.5rem;
+}
+
+.hero-banner__badge-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.hero-banner__title {
+  font-family: var(--font-display, "Bagel Fat One", system-ui, sans-serif);
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  line-height: 1.15;
+  color: var(--ink, #1b1b2f);
+  margin: 0 0 1.25rem;
+}
+
+.highlight-text {
+  background-color: var(--lemon, #ffd23f);
+  padding: 0.1rem 0.45rem;
+  border: 2.5px solid var(--ink, #1b1b2f);
+  border-radius: 0.5rem;
+  box-shadow: 3px 3px 0 var(--ink, #1b1b2f);
+  display: inline-block;
+}
+
+.hero-banner__lead {
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: #3f3f5a;
+  margin: 0 0 1.75rem;
+  max-width: 580px;
+}
+
+.hero-banner__benefits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+.benefit-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background-color: #ffffff;
+  border: 2px solid var(--ink, #1b1b2f);
+  border-radius: 999px;
+  padding: 0.4rem 0.875rem;
+  font-weight: 800;
+  font-size: 0.875rem;
+  box-shadow: 2px 2px 0 var(--ink, #1b1b2f);
+}
+
+.hero-banner__cta-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.hero-cta-btn {
+  font-size: 1.125rem;
+  padding: 0.875rem 2rem;
+}
+
+.hero-banner__subnote {
+  font-size: 0.8125rem;
+  color: #555570;
+}
+
+.hero-banner__visual {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.hero-mascot-stage {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background-color: #ffffff;
+  border: 3px solid var(--ink, #1b1b2f);
+  border-radius: 2rem;
+  box-shadow: 6px 6px 0 var(--ink, #1b1b2f);
+  padding: 2.5rem 1.5rem 1.5rem;
+  width: 100%;
+  max-width: 380px;
+}
+
+.hero-mascot {
+  transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.hero-mascot--left {
+  margin-right: -25px;
+  z-index: 1;
+}
+
+.hero-mascot--right {
+  margin-left: -25px;
+  z-index: 2;
+}
+
+.hero-mascot-stage:hover .hero-mascot--left {
+  transform: rotate(-6deg) translateY(-8px);
+}
+.hero-mascot-stage:hover .hero-mascot--right {
+  transform: rotate(6deg) translateY(-8px);
+}
+
+.hero-banner__bubble {
+  position: absolute;
+  top: -15px;
+  right: -10px;
+  background-color: var(--lemon, #ffd23f);
+  border: 2.5px solid var(--ink, #1b1b2f);
+  border-radius: 999px;
+  padding: 0.4rem 0.875rem;
+  font-weight: 900;
+  font-size: 0.8125rem;
+  box-shadow: 3px 3px 0 var(--ink, #1b1b2f);
+  z-index: 3;
+}
+
+/* ------------------------------------------------------------
+ * 10. Catalog Controls & Product Grid
+ * ------------------------------------------------------------ */
+.storefront-container {
+  max-width: var(--container-max, 1200px);
+  margin: 0 auto;
+  padding: 2.5rem 1rem 4rem;
+}
+
+.catalog-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-bottom: 2.5rem;
+}
+
+.search-bar-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  max-width: 600px;
+  width: 100%;
+}
+
+.search-bar__icon {
+  position: absolute;
+  left: 1rem;
+  pointer-events: none;
+  font-size: 1.125rem;
+}
+
+.search-bar__input {
+  width: 100%;
+  padding: 0.875rem 2.75rem 0.875rem 2.875rem;
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink, #1b1b2f);
+  background-color: #ffffff;
+  border: 3px solid var(--ink, #1b1b2f);
+  border-radius: 999px;
+  box-shadow: 4px 4px 0 var(--ink, #1b1b2f);
+  outline: none;
+  transition: all 120ms ease;
+}
+
+.search-bar__input:focus {
+  box-shadow: 6px 6px 0 var(--ink, #1b1b2f);
+  transform: translate(-1px, -1px);
+}
+
+.search-bar__clear {
+  position: absolute;
+  right: 1rem;
+  background: none;
+  border: none;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  color: #6a6a80;
+}
+
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.75rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 768px) {
+  .hero-banner__container {
+    grid-template-columns: 1fr;
+    text-align: center;
+    gap: 2rem;
+  }
+  .hero-banner__badge-row,
+  .hero-banner__benefits,
+  .hero-banner__cta-group {
+    justify-content: center;
+    align-items: center;
+  }
+  .hide-on-mobile {
+    display: none;
+  }
+  .catalog-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ------------------------------------------------------------
+ * 11. Storefront Footer
+ * ------------------------------------------------------------ */
+.site-footer {
+  background-color: var(--ink, #1b1b2f);
+  color: var(--cream, #fff4dc);
+  border-top: 4px solid var(--ink, #1b1b2f);
+  padding: 3rem 1rem 2rem;
+}
+
+.site-footer__container {
+  max-width: var(--container-max, 1200px);
+  margin: 0 auto;
+}
+
+.site-footer__top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px dashed rgba(255, 244, 220, 0.25);
+}
+
+.site-footer__brand {
+  max-width: 400px;
+}
+
+.site-footer__logo {
+  font-family: var(--font-display, "Bagel Fat One", system-ui, sans-serif);
+  font-size: 1.75rem;
+  color: var(--lemon, #ffd23f);
+  margin: 0 0 0.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.site-footer__desc {
+  color: #c5c5d2;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.site-footer__badges {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.site-footer__bottom {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding-top: 1.5rem;
+  font-size: 0.8125rem;
+  color: #9898ab;
+}
+
+.diag-toggle-btn {
+  background-color: #2b2b45;
+  color: var(--cream, #fff4dc);
+  border: 1.5px solid rgba(255, 244, 220, 0.3);
+  border-radius: 999px;
+  padding: 0.35rem 0.875rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.diag-toggle-btn:hover {
+  background-color: var(--lemon, #ffd23f);
+  color: var(--ink, #1b1b2f);
+  border-color: var(--lemon, #ffd23f);
+}
+
+/* ------------------------------------------------------------
+ * 12. Micro-interactions, Alerts, Toast & Rubber-Hose Animations
+ * ------------------------------------------------------------ */
+
+/* Form Input & Textarea Focus Glow / Border Thickening */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+input[type="number"],
+select,
+textarea {
+  border: 3px solid var(--ink, #1b1b2f);
+  border-radius: var(--radius-md, 0.875rem);
+  box-shadow: 3px 3px 0 var(--ink, #1b1b2f);
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="tel"]:focus,
+input[type="number"]:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--ink, #1b1b2f);
+  box-shadow: 5px 5px 0 var(--ink, #1b1b2f);
+  transform: translate(-1px, -1px);
+}
+
+/* Can Bounce & Squish Animation */
+@keyframes canSquishBounce {
+  0% {
+    transform: scale(1, 1);
+  }
+  20% {
+    transform: scale(1.24, 0.76) translateY(8px);
+  }
+  45% {
+    transform: scale(0.85, 1.2) translateY(-14px) rotate(-4deg);
+  }
+  70% {
+    transform: scale(1.08, 0.94) translateY(2px) rotate(3deg);
+  }
+  85% {
+    transform: scale(0.97, 1.03) translateY(-1px);
+  }
+  100% {
+    transform: scale(1, 1) translateY(0) rotate(0deg);
+  }
+}
+
+.can-anim--squish {
+  animation: canSquishBounce 600ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Cart Badge Bounce Animation */
+@keyframes cartBadgeBounce {
+  0% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.5) rotate(-14deg);
+  }
+  60% {
+    transform: scale(0.85) rotate(8deg);
+  }
+  85% {
+    transform: scale(1.1) rotate(-3deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.cart-badge--bump {
+  animation: cartBadgeBounce 450ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Cart Button Wiggle Animation */
+@keyframes cartWiggle {
+  0%, 100% {
+    transform: rotate(0deg) scale(1);
+  }
+  20% {
+    transform: rotate(-10deg) scale(1.08);
+  }
+  40% {
+    transform: rotate(10deg) scale(1.08);
+  }
+  60% {
+    transform: rotate(-6deg) scale(1.04);
+  }
+  80% {
+    transform: rotate(4deg) scale(1.02);
+  }
+}
+
+.cart-btn--wiggle {
+  animation: cartWiggle 600ms ease;
+}
+
+/* Modal Squash & Stretch Entry */
+@keyframes squashStretchIn {
+  0% {
+    transform: scale(0.65, 1.35) translateY(35px);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1, 0.9) translateY(-6px);
+    opacity: 1;
+  }
+  75% {
+    transform: scale(0.96, 1.04) translateY(2px);
+  }
+  100% {
+    transform: scale(1, 1) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Modal Spring In */
+@keyframes modalSpringIn {
+  0% {
+    transform: scale(0.75) translateY(30px);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.05) translateY(-5px);
+    opacity: 1;
+  }
+  80% {
+    transform: scale(0.98) translateY(1px);
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Toast Pop-in Bounce */
+@keyframes popBounceIn {
+  0% {
+    transform: scale(0.4) translateY(40px) rotate(-4deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08) translateY(-6px) rotate(1deg);
+    opacity: 1;
+  }
+  80% {
+    transform: scale(0.96) translateY(2px) rotate(0deg);
+  }
+  100% {
+    transform: scale(1) translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+/* Toast Container & Cards */
+.kalengo-toast-container {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 420px;
+  width: calc(100vw - 2.5rem);
+  pointer-events: none;
+}
+
+.kalengo-toast {
+  position: relative;
+  pointer-events: auto;
+  background-color: #ffffff;
+  border: 3px solid var(--ink, #1b1b2f);
+  border-radius: var(--radius-md, 0.875rem);
+  box-shadow: 4px 4px 0 var(--ink, #1b1b2f);
+  overflow: hidden;
+  animation: popBounceIn 400ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.kalengo-toast:hover {
+  transform: translateY(-2px);
+  box-shadow: 6px 6px 0 var(--ink, #1b1b2f);
+}
+
+.kalengo-toast__content {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+}
+
+.kalengo-toast__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.kalengo-toast__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.kalengo-toast__title {
+  font-family: var(--font-display, "Bagel Fat One", system-ui, sans-serif);
+  font-size: 0.9375rem;
+  color: var(--ink, #1b1b2f);
+  line-height: 1.2;
+}
+
+.kalengo-toast__message {
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-size: 0.875rem;
+  color: var(--ink, #1b1b2f);
+  line-height: 1.4;
+  margin: 0;
+  font-weight: 600;
+}
+
+.kalengo-toast__close {
+  background: var(--cream, #fff4dc);
+  border: 2px solid var(--ink, #1b1b2f);
+  border-radius: 6px;
+  box-shadow: 2px 2px 0 var(--ink, #1b1b2f);
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 900;
+  cursor: pointer;
+  color: var(--ink, #1b1b2f);
+  transition: transform 100ms ease, box-shadow 100ms ease;
+  flex-shrink: 0;
+}
+
+.kalengo-toast__close:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--ink, #1b1b2f);
+}
+
+.kalengo-toast__close:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--ink, #1b1b2f);
+}
+
+.kalengo-toast__progress-bar {
+  height: 4px;
+  width: 100%;
+  animation: toastProgress linear forwards;
+  transform-origin: left;
+  border-top: 1.5px solid var(--ink, #1b1b2f);
+}
+
+@keyframes toastProgress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+/* Confetti Particle Fall Animation */
+@keyframes confettiFall {
+  0% {
+    transform: translateY(0) rotate(0deg) scale(0.8);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(520px) rotate(640deg) scale(1.1);
+    opacity: 0;
+  }
+}
+
+.confetti-particle {
+  animation: confettiFall linear infinite;
+}
+
+/* Mascot Cheer Animation */
+@keyframes mascotCheer {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-16px) rotate(-6deg) scale(1.06);
+  }
+  50% {
+    transform: translateY(-4px) rotate(5deg) scale(1.08);
+  }
+  75% {
+    transform: translateY(-12px) rotate(-4deg) scale(1.04);
+  }
+}
+
+.mascot-anim--cheer {
+  animation: mascotCheer 800ms ease-in-out infinite;
+}
+
+/* Bouncy Checkmark */
+@keyframes bouncyCheckmark {
+  0% {
+    transform: scale(0) rotate(-45deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.25) rotate(8deg);
+    opacity: 1;
+  }
+  80% {
+    transform: scale(0.92) rotate(-3deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.bouncy-checkmark-circle {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background-color: var(--mint, #3ddc97);
+  border: 3.5px solid var(--ink, #1b1b2f);
+  box-shadow: 4px 4px 0 var(--ink, #1b1b2f);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.25rem;
+  color: var(--ink, #1b1b2f);
+  animation: bouncyCheckmark 550ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Reduced Motion Override for Section 12 */
+@media (prefers-reduced-motion: reduce) {
+  .modal-window,
+  .modal-window--confirm,
+  .kalengo-toast,
+  .kalengo-toast__progress-bar,
+  .can-anim--squish,
+  .cart-badge--bump,
+  .cart-btn--wiggle,
+  .confetti-particle,
+  .mascot-anim--cheer,
+  .bouncy-checkmark-circle {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}

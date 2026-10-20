@@ -17,6 +17,8 @@ secrets/
 # ---- Go ----
 /apps/api/bin/
 /apps/api/tmp/
+*.exe
+*.exe~
 *.test
 *.out
 coverage.out

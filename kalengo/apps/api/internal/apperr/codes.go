@@ -56,8 +56,10 @@ const (
 	CodeChkMinOrder         = "CHK_MIN_ORDER" // [TAMBAHAN]
 	CodePayFailed           = "PAY_FAILED"
 	CodePayExpired          = "PAY_EXPIRED"
-	CodePayProviderError    = "PAY_PROVIDER_ERROR" // [TAMBAHAN]
-	CodePayAlreadyPaid      = "PAY_ALREADY_PAID"   // [TAMBAHAN]
+	CodePayProviderError    = "PAY_PROVIDER_ERROR"            // [TAMBAHAN]
+	CodePayAlreadyPaid      = "PAY_ALREADY_PAID"              // [TAMBAHAN]
+	CodePayWebhookSignature = "PAY_WEBHOOK_SIGNATURE_INVALID" // [TAMBAHAN]
+	CodePayAmountMismatch   = "PAY_AMOUNT_MISMATCH"           // [TAMBAHAN]
 )
 
 // Pesanan & ulasan.
@@ -171,6 +173,12 @@ func init() {
 			Message: "Pembayaran sedang tidak bisa diproses. Coba beberapa saat lagi."},
 		Definition{Code: CodePayAlreadyPaid, Status: 409, Severity: SeverityInfo, Category: CategoryPayment,
 			Message: "Pesanan ini sudah dibayar."},
+		Definition{Code: CodePayWebhookSignature, Status: 401, Severity: SeverityCritical,
+			Category: CategoryPayment, Persist: true,
+			Message: "Pemberitahuan pembayaran ditolak: tanda tangan tidak sah."},
+		Definition{Code: CodePayAmountMismatch, Status: 409, Severity: SeverityCritical,
+			Category: CategoryPayment, Persist: true,
+			Message: "Pemberitahuan pembayaran ditolak: nominal tidak cocok dengan pesanan."},
 
 		// ---------- E. Pesanan & ulasan ----------
 		Definition{Code: CodeOrdCancelDenied, Status: 409, Severity: SeverityError, Category: CategoryOrder,

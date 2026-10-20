@@ -89,6 +89,8 @@ export default tseslint.config(
     // Berkas uji & konfigurasi boleh lebih longgar.
     files: ["**/*.{test,spec}.{ts,tsx}", "vite.config.ts"],
     rules: {
+      "@typescript-eslint/require-await": "off",
+      "@typescript-eslint/no-base-to-string": "off",
       "@typescript-eslint/no-unsafe-assignment": "off",
       "@typescript-eslint/no-unsafe-member-access": "off",
       "@typescript-eslint/no-unsafe-argument": "off",

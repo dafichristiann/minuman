@@ -21,17 +21,17 @@ describe("apiRequest", () => {
   });
 
   test("mengirim cookie sesi (credentials: include)", async () => {
-    const fetchMock = vi.fn(async () => fakeResponse({}));
+    const fetchMock = vi.fn<typeof fetch>(async () => fakeResponse({}));
     vi.stubGlobal("fetch", fetchMock);
 
     await apiRequest("/api/v1/me");
 
-    const init = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+    const init = fetchMock.mock.calls[0]?.[1];
     expect(init?.credentials).toBe("include");
   });
 
   test("meneruskan Idempotency-Key untuk POST /orders", async () => {
-    const fetchMock = vi.fn(async () => fakeResponse({}, 201));
+    const fetchMock = vi.fn<typeof fetch>(async () => fakeResponse({}, 201));
     vi.stubGlobal("fetch", fetchMock);
 
     await apiRequest("/api/v1/orders", {
@@ -40,7 +40,7 @@ describe("apiRequest", () => {
       idempotencyKey: "abc-123",
     });
 
-    const init = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+    const init = fetchMock.mock.calls[0]?.[1];
     const headers = init?.headers as Headers;
     expect(headers.get("Idempotency-Key")).toBe("abc-123");
     expect(headers.get("Content-Type")).toBe("application/json");

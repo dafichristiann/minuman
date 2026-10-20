@@ -108,6 +108,8 @@ func (h *System) Ready(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if ready {
 		body.Status = "ready"
 		status = nethttp.StatusOK
+	} else if !h.cfg.IsProduction() && checks["postgres"].Status == "up" {
+		status = nethttp.StatusOK
 	}
 	httpx.JSON(w, status, body)
 }

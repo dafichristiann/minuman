@@ -73,23 +73,38 @@ func run() error {
 	}
 	defer pool.Close()
 
-	rdb, err := redisclient.New(ctx, redisclient.Options{
+	var rdb *redisclient.Client
+	pingAttempts := 15
+	dialTimeout := cfg.Redis.DialTimeout
+	if !cfg.IsProduction() {
+		pingAttempts = 1
+		dialTimeout = 500 * time.Millisecond
+	}
+	rdb, err = redisclient.New(ctx, redisclient.Options{
 		URL:          cfg.Redis.URL,
 		PoolSize:     cfg.Redis.PoolSize,
-		DialTimeout:  cfg.Redis.DialTimeout,
-		PingAttempts: 15,
-		PingBackoff:  2 * time.Second,
+		DialTimeout:  dialTimeout,
+		PingAttempts: pingAttempts,
+		PingBackoff:  time.Second,
 	})
 	if err != nil {
-		return err
-	}
-	defer func() {
-		if cerr := rdb.Close(); cerr != nil {
-			log.Warn("gagal menutup koneksi Redis", "error", cerr)
+		if cfg.IsProduction() {
+			return err
 		}
-	}()
+		log.Warn("Redis tidak tersedia; berjalan dalam mode dev tanpa Redis", "error", err)
+		rdb = nil
+	} else {
+		defer func() {
+			if cerr := rdb.Close(); cerr != nil {
+				log.Warn("gagal menutup koneksi Redis", "error", cerr)
+			}
+		}()
+	}
 
-	limiter := ratelimit.New(rdb.Client, cfg.App.Name+":rl")
+	var limiter *ratelimit.Limiter
+	if rdb != nil {
+		limiter = ratelimit.New(rdb.Client, cfg.App.Name+":rl")
+	}
 
 	router := apiserver.NewRouter(apiserver.Deps{
 		Config:  cfg,

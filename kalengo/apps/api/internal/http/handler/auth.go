@@ -23,11 +23,13 @@ func NewAuth(cfg *config.Config, svc *auth.Service) *Auth {
 }
 
 type registerRequest struct {
-	Email     string `json:"email"`
-	Password  string `json:"password"`
-	FullName  string `json:"full_name"`
-	Phone     string `json:"phone"`
-	BirthDate string `json:"birth_date"`
+	Email          string `json:"email"`
+	Password       string `json:"password"`
+	FullName       string `json:"full_name"`
+	Phone          string `json:"phone"`
+	BirthDate      string `json:"birth_date"`
+	AcceptTerms    bool   `json:"accept_terms,omitempty"`
+	TurnstileToken string `json:"turnstile_token,omitempty"`
 }
 
 type loginRequest struct {

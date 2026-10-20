@@ -152,7 +152,7 @@ produksi** dan akan digantikan mailer sungguhan di M3.
 ### 3.7 Stok publik dibulatkan
 
 PRD §12.2 melarang membocorkan angka stok persis. Detail produk mengembalikan
-`stock_status` (`in_stock` \| `low` \| `out`) dan `stock_hint`
+`stock_status` (`in_stock` \| `low_stock` \| `out_of_stock`) dan `stock_hint`
 (mis. `"Tersisa ≤10"`), bukan kuantitas. Angka persis hanya muncul di panel
 admin (M4) dan di validasi keranjang (`available`, dipakai untuk membatasi
 kuantitas).
@@ -227,7 +227,7 @@ nyata) menjadi bagian penutup M1.
 - [x] `go build ./...` lulus
 - [x] `go vet ./...` lulus
 - [x] `go test ./...` lulus (10 paket, 147 fungsi uji)
-- [ ] Uji integrasi terhadap PostgreSQL nyata (migrasi + seed + alur HTTP)
+- [ ] Uji integrasi terhadap PostgreSQL nyata (migrasi + seed + alur HTTP); tertunda karena Redis dan Docker belum tersedia di mesin audit
 - [ ] `openapi.yaml` diperbarui untuk respons yang berubah (204/array)
 - [ ] `go.sum` di-commit dan cache modul CI dinyalakan kembali
 

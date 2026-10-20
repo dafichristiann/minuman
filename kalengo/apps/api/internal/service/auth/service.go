@@ -7,7 +7,6 @@ import (
 	"errors"
 	"log/slog"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,6 +47,20 @@ type Sessions interface {
 	RevokeAllForUser(ctx context.Context, userID uuid.UUID) error
 	CreateOneTimeToken(ctx context.Context, p repo.CreateOneTimeTokenParams) error
 	ConsumeOneTimeToken(ctx context.Context, purpose string, hash []byte) (uuid.UUID, error)
+}
+
+type atomicPasswordUpdater interface {
+	UpdatePasswordAndRevokeAll(context.Context, uuid.UUID, string) error
+}
+
+type atomicPasswordResetter interface {
+	ResetPassword(context.Context, []byte, string) error
+}
+
+// atomicEmailVerifier menandai email terverifikasi dalam transaksi yang sama
+// dengan konsumsi token, sehingga tautan tidak hangus tanpa efek.
+type atomicEmailVerifier interface {
+	VerifyEmail(context.Context, []byte) error
 }
 
 // Mailer mengirim email transaksional. Implementasi nyata (SMTP + templat)
@@ -365,6 +378,15 @@ func (s *Service) VerifyEmail(ctx context.Context, token string) error {
 	if err != nil {
 		return apperr.New(apperr.CodeAuthVerifyExpired, nil)
 	}
+	if atomic, ok := s.sessions.(atomicEmailVerifier); ok {
+		if err := atomic.VerifyEmail(ctx, hash); err != nil {
+			if errors.Is(err, repo.ErrNotFound) {
+				return apperr.New(apperr.CodeAuthVerifyExpired, nil)
+			}
+			return apperr.Wrap(err, apperr.CodeAPIServerError, nil)
+		}
+		return nil
+	}
 	userID, err := s.sessions.ConsumeOneTimeToken(ctx, repo.PurposeVerifyEmail, hash)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
@@ -439,15 +461,24 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	if err != nil {
 		return apperr.New(apperr.CodeAuthVerifyExpired, nil)
 	}
+	newHash, err := security.HashPassword(newPassword, s.argon)
+	if err != nil {
+		return apperr.Wrap(err, apperr.CodeAPIServerError, nil)
+	}
+	if atomic, ok := s.sessions.(atomicPasswordResetter); ok {
+		if err := atomic.ResetPassword(ctx, hash, newHash); err != nil {
+			if errors.Is(err, repo.ErrNotFound) {
+				return apperr.New(apperr.CodeAuthVerifyExpired, nil)
+			}
+			return apperr.Wrap(err, apperr.CodeAPIServerError, nil)
+		}
+		return nil
+	}
 	userID, err := s.sessions.ConsumeOneTimeToken(ctx, repo.PurposeResetPassword, hash)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return apperr.New(apperr.CodeAuthVerifyExpired, nil)
 		}
-		return apperr.Wrap(err, apperr.CodeAPIServerError, nil)
-	}
-	newHash, err := security.HashPassword(newPassword, s.argon)
-	if err != nil {
 		return apperr.Wrap(err, apperr.CodeAPIServerError, nil)
 	}
 	if err := s.users.UpdateUserPassword(ctx, userID, newHash); err != nil {
@@ -487,7 +518,7 @@ func (s *Service) ChangePassword(ctx context.Context, in ChangePasswordInput) (S
 	if err := security.ValidatePassword(in.New); err != nil {
 		return Session{}, passwordError(err)
 	}
-	if strings.EqualFold(in.Current, in.New) {
+	if in.Current == in.New {
 		return Session{}, apperr.New(apperr.CodeAuthPasswordWeak, nil).
 			WithField("new_password", "password baru harus berbeda dari yang lama")
 	}
@@ -496,10 +527,13 @@ func (s *Service) ChangePassword(ctx context.Context, in ChangePasswordInput) (S
 	if err != nil {
 		return Session{}, apperr.Wrap(err, apperr.CodeAPIServerError, nil)
 	}
-	if err := s.users.UpdateUserPassword(ctx, user.ID, newHash); err != nil {
+	if atomic, ok := s.users.(atomicPasswordUpdater); ok {
+		if err := atomic.UpdatePasswordAndRevokeAll(ctx, user.ID, newHash); err != nil {
+			return Session{}, apperr.Wrap(err, apperr.CodeAPIServerError, nil)
+		}
+	} else if err := s.users.UpdateUserPassword(ctx, user.ID, newHash); err != nil {
 		return Session{}, apperr.Wrap(err, apperr.CodeAPIServerError, nil)
-	}
-	if err := s.sessions.RevokeAllForUser(ctx, user.ID); err != nil {
+	} else if err := s.sessions.RevokeAllForUser(ctx, user.ID); err != nil {
 		return Session{}, apperr.Wrap(err, apperr.CodeAPIServerError, nil)
 	}
 

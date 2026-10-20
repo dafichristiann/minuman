@@ -2,6 +2,7 @@ package handler
 
 import (
 	nethttp "net/http"
+	"strconv"
 	"time"
 
 	"github.com/kalengo/api/internal/config"
@@ -100,7 +101,7 @@ func newVariantDTO(v domain.Variant) variantDTO {
 		hint = "Habis"
 	case available <= v.LowStockThreshold:
 		status = "low_stock"
-		hint = "Tersisa ≤10"
+		hint = "Tersisa ≤" + strconv.Itoa(int(v.LowStockThreshold))
 	}
 
 	return variantDTO{

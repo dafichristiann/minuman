@@ -101,6 +101,17 @@ func (s *Store) UpdateUserPassword(ctx context.Context, id uuid.UUID, hash strin
 	return err
 }
 
+// UpdatePasswordAndRevokeAll changes credentials and invalidates sessions as
+// one unit. The password mutation must not commit without session revocation.
+func (s *Store) UpdatePasswordAndRevokeAll(ctx context.Context, id uuid.UUID, hash string) error {
+	return s.InTx(ctx, func(tx *Store) error {
+		if err := tx.UpdateUserPassword(ctx, id, hash); err != nil {
+			return err
+		}
+		return tx.RevokeAllForUser(ctx, id)
+	})
+}
+
 // RecordLoginSuccess mereset penghitung gagal dan mencatat waktu login.
 func (s *Store) RecordLoginSuccess(ctx context.Context, id uuid.UUID) error {
 	_, err := s.db.Exec(ctx, `

@@ -95,6 +95,12 @@ func RateLimit(limiter *ratelimit.Limiter, key KeyFunc, limit int, window time.D
 				next.ServeHTTP(w, r)
 				return
 			}
+			// Tanpa limiter (mis. Redis tidak dikonfigurasi) permintaan diteruskan
+			// dengan fail-open, sama seperti saat Redis mati di tengah jalan.
+			if limiter == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
 
 			result, err := limiter.Allow(r.Context(), key(r), limit, window)
 			if err != nil {

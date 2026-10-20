@@ -139,6 +139,8 @@ yang ada. Jangan menghapusnya tanpa alasan.
 | `API_UNSUPPORTED_MEDIA` | 415 | Content-Type bukan JSON |
 | `API_TIMEOUT` | 504 | §1.4 punya anggaran waktu; pelanggarannya perlu kode |
 | `API_IDEMPOTENCY_CONFLICT` | 409 | `Idempotency-Key` sama, body berbeda (§12) |
+| `PAY_WEBHOOK_SIGNATURE_INVALID` | 401 | Tanda tangan webhook ditolak (§13.1 butir 3.7) |
+| `PAY_AMOUNT_MISMATCH` | 409 | Nominal webhook tidak sama dengan total pesanan di database (§13.1 butir 3.7) |
 | `ADM_AUDIT_CHAIN_BROKEN` | 500 | Verifikasi hash chain gagal (§11.3) — kritis |
 | `ADM_STOCK_REASON_REQ` | 422 | §11.2/§8.6 mewajibkan alasan pada koreksi stok manual |
 
@@ -194,7 +196,21 @@ query wajib melewati `internal/repo` dan memakai placeholder bernomor.
 
 ---
 
-## 7. Cara menambah baris di dokumen ini
+## 7. Keputusan & Implementasi M2 (Checkout, Pesanan, Pembayaran)
+
+| # | Hal | Keputusan | Alasan |
+|---|---|---|---|
+| 7.1 | Penyedia pembayaran M2 | **`payment.Fake`** (dalam proses, tanpa jaringan) | Meniru tanda tangan `SHA512(order+status+cost+key)` Midtrans Snap tanpa ketergantungan API pihak ketiga saat pengujian lokal/CI; adapter jaringan riil masuk M5 |
+| 7.2 | Penyedia pengiriman M2 | **`shipping.Fake`** (dalam proses) | Tarif deterministik per kg & per area; adapter Biteship riil masuk M5 |
+| 7.3 | Idempotensi `POST /orders` | Kunci unik `(user_id, idempotency_key)` + kolom `request_fingerprint` | Permintaan kedua dengan kunci & isi sama dijawab `200` (pesanan yang sudah ada); bila body berbeda menghasilkan `API_IDEMPOTENCY_CONFLICT` (409) |
+| 7.4 | Konvensi tanda delta ledger stok | `reservation`: `+qty`; `release`: `-qty`; `sale`: `-qty` | Konsisten dengan ledger ganda: `stock_reserved = sum(reservation + release)`, `stock_on_hand = sum(restock + adjustment + sale)` |
+| 7.5 | Pembangkit `order_no` | Sequence PostgreSQL `order_no_seq` (migrasi 000002) | Format `KLG-YYYYMMDD-NNNN`; bebas balapan tanpa retry di aplikasi |
+| 7.6 | Webhook Midtrans idempotensi | `payment_webhook_events` dengan `UNIQUE (provider, event_id)` | Event ganda dijawab `200` tanpa mutasi ulang state |
+| 7.7 | Urutan eksekusi checkout TX | Insert `orders` → reserve stok + movement → insert items → commit | Foreign key `stock_movements.order_id → orders(id)` mewajibkan baris pesanan ada lebih dulu di transaksi yang sama |
+
+---
+
+## 8. Cara menambah baris di dokumen ini
 
 Saat Anda menyimpang dari PRD:
 
