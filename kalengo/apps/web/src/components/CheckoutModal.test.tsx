@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { CheckoutModal } from "./CheckoutModal";
 
@@ -108,10 +108,10 @@ describe("CheckoutModal", () => {
     const streetInput = screen.getByLabelText(/alamat jalan & patokan/i);
     const postalInput = screen.getByLabelText(/kode pos/i);
 
-    // Alamat terlalu pendek (< 10 karakter)
-    fireEvent.change(streetInput, { target: { value: "Jl. Mawar" } });
+    // Alamat terlalu pendek (< 5 karakter)
+    fireEvent.change(streetInput, { target: { value: "Jl." } });
     expect(
-      screen.getByText(/✕ Alamat minimal 10 karakter/i),
+      screen.getByText(/✕ Alamat minimal 5 karakter/i),
     ).toBeInTheDocument();
 
     // Alamat lengkap
@@ -141,7 +141,7 @@ describe("CheckoutModal", () => {
       />,
     );
 
-    const submitBtn = screen.getByRole("button", { name: /lanjut ke konfirmasi/i });
+    const submitBtn = screen.getByRole("button", { name: /bayar sekarang/i });
     fireEvent.click(submitBtn);
 
     expect(mockToast.error).toHaveBeenCalledWith(
@@ -150,12 +150,15 @@ describe("CheckoutModal", () => {
     );
   });
 
-  test("menampilkan badge ✓ Data Lengkap dan membuka ConfirmModal saat valid", () => {
+  test("menampilkan badge ✓ Data Lengkap dan langsung memproses pesanan saat valid", async () => {
+    const onClose = vi.fn();
+    const onOrderCreated = vi.fn();
+
     render(
       <CheckoutModal
         isOpen={true}
-        onClose={vi.fn()}
-        onOrderCreated={vi.fn()}
+        onClose={onClose}
+        onOrderCreated={onOrderCreated}
         onRequireAuth={vi.fn()}
       />,
     );
@@ -169,11 +172,14 @@ describe("CheckoutModal", () => {
     fireEvent.change(screen.getByLabelText(/alamat jalan & patokan/i), {
       target: { value: "Jl. Kebon Jeruk Barat No. 88, RT 02/05" },
     });
+    fireEvent.change(screen.getByLabelText(/provinsi/i), {
+      target: { value: "DKI Jakarta" },
+    });
     fireEvent.change(screen.getByLabelText(/kota \/ kabupaten/i), {
       target: { value: "Jakarta Barat" },
     });
-    fireEvent.change(screen.getByLabelText(/provinsi/i), {
-      target: { value: "DKI Jakarta" },
+    fireEvent.change(screen.getByLabelText(/kelurahan \/ kecamatan/i), {
+      target: { value: "Kebon Jeruk" },
     });
     fireEvent.change(screen.getByLabelText(/kode pos/i), {
       target: { value: "11530" },
@@ -182,14 +188,89 @@ describe("CheckoutModal", () => {
     // Badge data lengkap muncul
     expect(screen.getByText("✓ Data Lengkap")).toBeInTheDocument();
 
-    // Klik lanjut ke konfirmasi
-    const submitBtn = screen.getByRole("button", { name: /lanjut ke konfirmasi/i });
+    // Klik Bayar Sekarang
+    const submitBtn = screen.getByRole("button", { name: /bayar sekarang/i });
     fireEvent.click(submitBtn);
 
-    // Modal konfirmasi terbuka dengan ringkasan
-    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
-    expect(screen.getByText(/Konfirmasi Pesanan/i)).toBeInTheDocument();
-    expect(screen.getByText(/Siti Rahma/i)).toBeInTheDocument();
-    expect(screen.getByText(/081987654321/i)).toBeInTheDocument();
+    // Langsung memproses pesanan tanpa modal bersarang yang macet
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalled();
+      expect(onOrderCreated).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "pending_payment",
+          subtotal: 50000,
+          shipping_cost: 15000,
+          total: 65000,
+        }),
+      );
+      expect(mockToast.success).toHaveBeenCalledWith(
+        "Pesanan berhasil dibuat! Silakan selesaikan pembayaran.",
+        "Pesanan Dibuat",
+      );
+    });
+  });
+
+  test("memproses checkout tamu secara andal dengan nomor +62 tanpa hambatan", async () => {
+    const onClose = vi.fn();
+    const onOrderCreated = vi.fn();
+
+    render(
+      <CheckoutModal
+        isOpen={true}
+        onClose={onClose}
+        onOrderCreated={onOrderCreated}
+        onRequireAuth={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/nama penerima/i), {
+      target: { value: "Ahmad Dahlan" },
+    });
+    fireEvent.change(screen.getByLabelText(/nomor hp/i), {
+      target: { value: "+628123456789" },
+    });
+    fireEvent.change(screen.getByLabelText(/alamat jalan & patokan/i), {
+      target: { value: "Jl. Sudirman No. 1" },
+    });
+
+    const submitBtn = screen.getByRole("button", { name: /bayar sekarang/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalled();
+      expect(onOrderCreated).toHaveBeenCalled();
+    });
+  });
+
+  test("memilih kecamatan dari daftar otomatis mengisi kode pos", () => {
+    render(
+      <CheckoutModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onOrderCreated={vi.fn()}
+        onRequireAuth={vi.fn()}
+      />,
+    );
+
+    const provInput = screen.getByLabelText(/provinsi/i);
+    fireEvent.focus(provInput);
+    fireEvent.change(provInput, { target: { value: "Jawa Barat" } });
+    const jabarOpt = screen.getByRole("option", { name: /jawa barat/i });
+    fireEvent.click(jabarOpt);
+
+    const cityInput = screen.getByLabelText(/kota \/ kabupaten/i);
+    fireEvent.focus(cityInput);
+    fireEvent.change(cityInput, { target: { value: "Kota Bandung" } });
+    const bdgOpt = screen.getByRole("option", { name: /kota bandung/i });
+    fireEvent.click(bdgOpt);
+
+    const districtInput = screen.getByLabelText(/kelurahan \/ kecamatan/i);
+    fireEvent.focus(districtInput);
+    fireEvent.change(districtInput, { target: { value: "Coblong" } });
+    const distOpt = screen.getByRole("option", { name: /coblong/i });
+    fireEvent.click(distOpt);
+
+    const postalInput = screen.getByLabelText(/kode pos/i) as HTMLInputElement;
+    expect(postalInput.value).toBe("40132");
   });
 });

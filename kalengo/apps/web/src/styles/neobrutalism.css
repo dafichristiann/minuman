@@ -1037,6 +1037,87 @@ textarea:focus {
   animation: badgePulseGreen 1.4s infinite ease-in-out;
 }
 
+/* ------------------------------------------------------------
+ * Searchable Combobox / Regional Selector (Neo-Brutalism)
+ * ------------------------------------------------------------ */
+.searchable-select {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.searchable-select__control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background-color: #ffffff;
+  border: 3px solid var(--ink, #1b1b2f);
+  border-radius: var(--radius-md, 0.875rem);
+  box-shadow: 3px 3px 0 var(--ink, #1b1b2f);
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.searchable-select__control:focus-within {
+  border-color: var(--ink, #1b1b2f);
+  box-shadow: 5px 5px 0 var(--ink, #1b1b2f);
+  transform: translate(-1px, -1px);
+}
+
+.searchable-select--disabled .searchable-select__control {
+  opacity: 0.6;
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+  box-shadow: 2px 2px 0 var(--ink, #1b1b2f);
+  transform: none;
+}
+
+.searchable-select__menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  max-height: 230px;
+  overflow-y: auto;
+  background-color: #ffffff;
+  border: 2px solid var(--ink, #1b1b2f);
+  border-radius: var(--radius-md, 0.875rem);
+  box-shadow: 3px 3px 0 var(--ink, #1b1b2f);
+  z-index: 1000;
+  padding: 0.25rem 0;
+  list-style: none;
+}
+
+.searchable-select__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--ink, #1b1b2f);
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 100ms ease;
+}
+
+.searchable-select__item:hover,
+.searchable-select__item:focus,
+.searchable-select__item--active {
+  background-color: var(--lemon, #ffd23f);
+  font-weight: 800;
+}
+
+.searchable-select__item--selected {
+  background-color: #e6f9f0;
+  font-weight: 800;
+  border-left: 4px solid var(--mint, #3ddc97);
+}
+
+.searchable-select__item:last-child {
+  border-bottom: none;
+}
+
 /* QRIS Frame & Payment UI */
 .qris-frame {
   display: flex;

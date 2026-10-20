@@ -81,6 +81,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     },
   ];
 
+  // Sinkronisasi status order saat modal dibuka atau order berganti
+  useEffect(() => {
+    if (order) {
+      setIsPaid(order.status === "paid");
+      setIsProcessing(false);
+      setProgressPercent(0);
+      setTimeLeft(15 * 60);
+    }
+  }, [order?.id, order?.status]);
+
   // Hitung mundur waktu pembayaran 15:00
   useEffect(() => {
     if (!isOpen || isPaid) return;
@@ -258,7 +268,11 @@ Customer Care: halo@kalengo.co.id
     >
       <div
         className="modal-window"
-        style={{ maxWidth: "560px", position: "relative", overflow: "hidden" }}
+        style={{
+          maxWidth: "560px",
+          maxHeight: "90vh",
+          overflowY: "auto",
+        }}
       >
         {isPaid ? (
           // Layar Bukti Pembayaran Berhasil (Success Receipt)
@@ -267,7 +281,12 @@ Customer Care: halo@kalengo.co.id
 
             <header
               className="modal-header"
-              style={{ backgroundColor: "var(--mint, #3ddc97)" }}
+              style={{
+                backgroundColor: "var(--mint, #3ddc97)",
+                position: "sticky",
+                top: 0,
+                zIndex: 10,
+              }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <span style={{ fontSize: "1.5rem" }} aria-hidden="true">
@@ -462,7 +481,12 @@ Customer Care: halo@kalengo.co.id
           <div>
             <header
               className="modal-header"
-              style={{ backgroundColor: "var(--lemon, #ffd23f)" }}
+              style={{
+                backgroundColor: "var(--lemon, #ffd23f)",
+                position: "sticky",
+                top: 0,
+                zIndex: 10,
+              }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <span style={{ fontSize: "1.5rem" }} aria-hidden="true">
