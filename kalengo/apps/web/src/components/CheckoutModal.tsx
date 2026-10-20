@@ -42,10 +42,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [recipient, setRecipient] = useState(user?.full_name || "");
   const [phone, setPhone] = useState(user?.phone || "");
   const [street, setStreet] = useState("");
-  const [province, setProvince] = useState("DKI Jakarta");
-  const [city, setCity] = useState("Kota Jakarta Selatan");
-  const [district, setDistrict] = useState("Kebayoran Baru");
-  const [postalCode, setPostalCode] = useState("12110");
+  const [province, setProvince] = useState("");
+  const [city, setCity] = useState("");
+  const [district, setDistrict] = useState("");
+  const [postalCode, setPostalCode] = useState("");
   const [addresses, setAddresses] = useState<readonly Address[]>([]);
 
   // Validation & Touched state
@@ -100,8 +100,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const cleanedPhone = phone.trim().replace(/[\s-]/g, "");
   const isPhoneValid = /^(?:\+62|62|0)8[0-9]{7,12}$/.test(cleanedPhone);
 
-  // c) Alamat Jalan: min 5 karakter (ramah pengguna)
-  const isStreetValid = street.trim().length >= 5;
+  // c) Alamat Jalan: minimal 10 huruf / karakter
+  const isStreetValid = street.trim().length >= 10;
 
   // d) Wilayah & Kode Pos
   const isProvinceValid = province.trim().length >= 3;
@@ -628,7 +628,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 >
                   {isStreetValid
                     ? "✓ Alamat Lengkap"
-                    : "✕ Alamat minimal 5 karakter"}
+                    : "✕ Alamat minimal 10 huruf beserta nomor/patokan"}
                 </div>
               )}
             </div>

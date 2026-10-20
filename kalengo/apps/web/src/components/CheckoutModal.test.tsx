@@ -108,10 +108,10 @@ describe("CheckoutModal", () => {
     const streetInput = screen.getByLabelText(/alamat jalan & patokan/i);
     const postalInput = screen.getByLabelText(/kode pos/i);
 
-    // Alamat terlalu pendek (< 5 karakter)
-    fireEvent.change(streetInput, { target: { value: "Jl." } });
+    // Alamat terlalu pendek (< 10 huruf / karakter)
+    fireEvent.change(streetInput, { target: { value: "Jl. Mawar" } });
     expect(
-      screen.getByText(/✕ Alamat minimal 5 karakter/i),
+      screen.getByText(/✕ Alamat minimal 10 huruf beserta nomor\/patokan/i),
     ).toBeInTheDocument();
 
     // Alamat lengkap
@@ -231,6 +231,18 @@ describe("CheckoutModal", () => {
     });
     fireEvent.change(screen.getByLabelText(/alamat jalan & patokan/i), {
       target: { value: "Jl. Sudirman No. 1" },
+    });
+    fireEvent.change(screen.getByLabelText(/provinsi/i), {
+      target: { value: "DKI Jakarta" },
+    });
+    fireEvent.change(screen.getByLabelText(/kota \/ kabupaten/i), {
+      target: { value: "Jakarta Pusat" },
+    });
+    fireEvent.change(screen.getByLabelText(/kelurahan \/ kecamatan/i), {
+      target: { value: "Gambir" },
+    });
+    fireEvent.change(screen.getByLabelText(/kode pos/i), {
+      target: { value: "10110" },
     });
 
     const submitBtn = screen.getByRole("button", { name: /bayar sekarang/i });
